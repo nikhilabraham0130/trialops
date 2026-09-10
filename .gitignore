@@ -40,6 +40,7 @@ mlruns/
 # Logs and temporary files
 *.log
 .cache/
+.work/
 tmp/
 temp/
 
@@ -53,4 +54,3 @@ temp/
 .DS_Store
 Thumbs.db
 Desktop.ini
-
