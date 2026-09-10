@@ -1,0 +1,56 @@
+# Python bytecode and caches
+__pycache__/
+*.py[codz]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Node.js dependencies and build output
+node_modules/
+frontend/dist/
+coverage/
+*.tsbuildinfo
+.npm/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Clinical data and generated artifacts
+# Real or restricted participant-level data must never be committed.
+data/raw/*
+data/processed/*
+artifacts/
+mlruns/
+
+# Logs and temporary files
+*.log
+.cache/
+tmp/
+temp/
+
+# Editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
