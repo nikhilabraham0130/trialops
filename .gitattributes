@@ -1,0 +1,13 @@
+# Store text files with Unix-style line endings on every operating system.
+* text=auto eol=lf
+
+# Never alter binary file contents while checking files in or out.
+*.gif binary
+*.gz binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.pdf binary
+*.png binary
+*.xpt binary
+*.zip binary
