@@ -1,0 +1,41 @@
+{
+  "manifest_version": "1.0",
+  "source": {
+    "name": "CDISC SDTM/ADaM Pilot Project",
+    "repository_url": "https://github.com/cdisc-org/sdtm-adam-pilot-project",
+    "revision": "667511d4b183871d74392ba691c935c38d431d39",
+    "retrieved_on": "2026-09-10",
+    "attribution": "Source data provided by CDISC (Clinical Data Interchange Standards Consortium)."
+  },
+  "study_id": "CDISCPILOT01",
+  "dataset_json_version": "1.1.0",
+  "artifacts": [
+    {
+      "filename": "dm.json",
+      "kind": "dataset-json",
+      "domain": "DM",
+      "byte_size": 77866,
+      "sha256": "785e2ccbdfec91c8a5c667b74b9f01ae99952fb8679d9c56053437916c404cf2"
+    },
+    {
+      "filename": "ae.json",
+      "kind": "dataset-json",
+      "domain": "AE",
+      "byte_size": 421104,
+      "sha256": "350063d64f52dcc3deae9e18250530668070dab7352483a6cfdc6569f17dfe8b"
+    },
+    {
+      "filename": "lb.json",
+      "kind": "dataset-json",
+      "domain": "LB",
+      "byte_size": 10537496,
+      "sha256": "e3f86bd18081f23f65d5cc9c9fa9b980c4027a16c5e052de8ff057ea5c35acf0"
+    },
+    {
+      "filename": "define.xml",
+      "kind": "define-xml",
+      "byte_size": 262416,
+      "sha256": "b55f196e37a379beaab4bdef4b5354b10ae3d756e259aedc2b1edda8e45f2f61"
+    }
+  ]
+}
