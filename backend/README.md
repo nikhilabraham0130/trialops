@@ -25,6 +25,13 @@ python -m uvicorn trialops.main:app --reload --env-file ..\.env
 The API will be available at `http://127.0.0.1:8000`. FastAPI's interactive API
 documentation will be available at `http://127.0.0.1:8000/docs`.
 
+## Health checks
+
+- `GET /health/live` confirms that the API process is running.
+- `GET /health/ready` confirms that the application has valid configuration and
+  is ready to receive requests. Database readiness will be added when PostgreSQL
+  is introduced.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
