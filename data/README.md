@@ -10,3 +10,7 @@ TrialOps separates data provenance records from participant-level source data.
 Never commit restricted or participant-level data. Public source artifacts must
 also be reviewed against their terms before distribution. The CDISC pilot files
 are acquired separately and must remain unchanged.
+
+Before parsing any clinical records, the backend verifies each required source
+file's byte size and SHA-256 checksum against its manifest. A missing or changed
+artifact blocks ingestion.
