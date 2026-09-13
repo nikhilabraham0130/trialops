@@ -21,7 +21,15 @@
       "name": "STUDYID",
       "label": "Study Identifier",
       "dataType": "string",
-      "length": 20
+      "length": 20,
+      "keySequence": 1
+    },
+    {
+      "itemOID": "DM.DOMAIN",
+      "name": "DOMAIN",
+      "label": "Domain Abbreviation",
+      "dataType": "string",
+      "length": 2
     },
     {
       "itemOID": "DM.USUBJID",
@@ -29,17 +37,81 @@
       "label": "Unique Subject Identifier",
       "dataType": "string",
       "length": 30,
-      "keySequence": 1
+      "keySequence": 2
+    },
+    {
+      "itemOID": "DM.SUBJID",
+      "name": "SUBJID",
+      "label": "Subject Identifier for the Study",
+      "dataType": "string",
+      "length": 20
     },
     {
       "itemOID": "DM.AGE",
       "name": "AGE",
       "label": "Age",
       "dataType": "integer"
+    },
+    {
+      "itemOID": "DM.AGEU",
+      "name": "AGEU",
+      "label": "Age Units",
+      "dataType": "string",
+      "length": 10
+    },
+    {
+      "itemOID": "DM.SEX",
+      "name": "SEX",
+      "label": "Sex",
+      "dataType": "string",
+      "length": 1
+    },
+    {
+      "itemOID": "DM.RACE",
+      "name": "RACE",
+      "label": "Race",
+      "dataType": "string",
+      "length": 40
+    },
+    {
+      "itemOID": "DM.ARM",
+      "name": "ARM",
+      "label": "Description of Planned Arm",
+      "dataType": "string",
+      "length": 40
+    },
+    {
+      "itemOID": "DM.ACTARM",
+      "name": "ACTARM",
+      "label": "Description of Actual Arm",
+      "dataType": "string",
+      "length": 40
     }
   ],
   "rows": [
-    ["TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", 34],
-    ["TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-002", 57]
+    [
+      "TRIALOPS-TEST-001",
+      "DM",
+      "TRIALOPS-SUBJECT-001",
+      "001",
+      34,
+      "YEARS",
+      "F",
+      "WHITE",
+      "Placebo",
+      "Placebo"
+    ],
+    [
+      "TRIALOPS-TEST-001",
+      "DM",
+      "TRIALOPS-SUBJECT-002",
+      "002",
+      57,
+      "YEARS",
+      "M",
+      "ASIAN",
+      "Xanomeline Low Dose",
+      "Xanomeline Low Dose"
+    ]
   ]
 }

@@ -24,10 +24,16 @@ def test_reader_loads_valid_trialops_fixture() -> None:
     assert document.study_oid == "TRIALOPS-TEST-001"
     assert document.records == 2
     assert document.creation_datetime == datetime(2026, 9, 12, 12, 0)
-    assert document.columns[1].name == "USUBJID"
-    assert document.columns[1].key_sequence == 1
-    assert document.columns[2].data_type is DatasetJsonDataType.INTEGER
-    assert document.rows[0] == ("TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", 34)
+    assert document.columns[2].name == "USUBJID"
+    assert document.columns[2].key_sequence == 2
+    assert document.columns[4].data_type is DatasetJsonDataType.INTEGER
+    assert document.rows[0][:5] == (
+        "TRIALOPS-TEST-001",
+        "DM",
+        "TRIALOPS-SUBJECT-001",
+        "001",
+        34,
+    )
 
 
 def test_reader_reports_missing_file(tmp_path: Path) -> None:

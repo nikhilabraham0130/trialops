@@ -24,11 +24,10 @@ def test_named_rows_pair_values_with_metadata_columns() -> None:
 
     assert len(rows) == 2
     assert rows[0].record_number == 1
-    assert rows[0].values == {
-        "STUDYID": "TRIALOPS-TEST-001",
-        "USUBJID": "TRIALOPS-SUBJECT-001",
-        "AGE": 34,
-    }
+    assert rows[0].values["STUDYID"] == "TRIALOPS-TEST-001"
+    assert rows[0].values["USUBJID"] == "TRIALOPS-SUBJECT-001"
+    assert rows[0].values["AGE"] == 34
+    assert rows[0].values["ARM"] == "Placebo"
     assert rows[1].record_number == 2
     assert rows[1].values["USUBJID"] == "TRIALOPS-SUBJECT-002"
 
@@ -55,8 +54,8 @@ def test_required_columns_report_all_missing_names() -> None:
     document = read_dataset_json(FIXTURE_PATH)
 
     with pytest.raises(MissingRequiredColumnsError) as raised:
-        require_columns(document, ("SEX", "ARM", "USUBJID"))
+        require_columns(document, ("SITEID", "COUNTRY", "USUBJID"))
 
     assert raised.value.dataset_name == "DM"
-    assert raised.value.missing_columns == ("ARM", "SEX")
-    assert str(raised.value) == "Dataset DM is missing required columns: ARM, SEX"
+    assert raised.value.missing_columns == ("COUNTRY", "SITEID")
+    assert str(raised.value) == "Dataset DM is missing required columns: COUNTRY, SITEID"
