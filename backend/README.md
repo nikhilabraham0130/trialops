@@ -19,11 +19,25 @@ changes are therefore available without reinstalling the package.
 
 ```powershell
 cd backend
-python -m uvicorn trialops.main:app --reload
+python -m uvicorn trialops.main:app --reload --env-file ..\.env
 ```
 
 The API will be available at `http://127.0.0.1:8000`. FastAPI's interactive API
 documentation will be available at `http://127.0.0.1:8000/docs`.
+
+## Configuration
+
+The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
+option loads the repository's ignored `.env` file into the process before the
+application starts.
+
+| Variable | Allowed values | Default |
+| --- | --- | --- |
+| `TRIALOPS_ENV` | `development`, `test`, `production` | `development` |
+| `TRIALOPS_LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | `INFO` |
+
+An unsupported value causes application startup to fail rather than silently
+using an unintended configuration.
 
 ## Local quality checks
 

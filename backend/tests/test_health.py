@@ -4,12 +4,14 @@ import asyncio
 
 from httpx import ASGITransport, AsyncClient, Response
 
+from trialops.core.config import RuntimeEnvironment, Settings
 from trialops.main import create_app
 
 
 async def _request_liveness() -> Response:
     """Send a request directly to the ASGI application."""
-    transport = ASGITransport(app=create_app())
+    settings = Settings(env=RuntimeEnvironment.TEST)
+    transport = ASGITransport(app=create_app(settings))
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         return await client.get("/health/live")
 
