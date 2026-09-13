@@ -18,7 +18,7 @@ def test_settings_have_safe_local_defaults(monkeypatch: pytest.MonkeyPatch) -> N
     assert settings.log_level is LogLevel.INFO
     assert (
         settings.database_url.get_secret_value()
-        == "postgresql+psycopg://trialops:trialops@localhost:5432/trialops"
+        == "postgresql+psycopg://trialops:change-me-for-local-development@127.0.0.1:55432/trialops"
     )
     assert str(settings.database_url) == "**********"
 

@@ -1,0 +1,1 @@
+"""Study catalog domain."""

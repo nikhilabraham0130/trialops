@@ -8,7 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://trialops:trialops@localhost:5432/trialops"
+DEFAULT_DATABASE_URL = (
+    "postgresql+psycopg://trialops:change-me-for-local-development@127.0.0.1:55432/trialops"
+)
 
 
 class RuntimeEnvironment(StrEnum):

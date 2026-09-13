@@ -39,6 +39,18 @@ Confirm that PostgreSQL can execute a query:
 docker compose exec postgres psql --username trialops --dbname trialops --command "SELECT 1;"
 ```
 
+Apply every pending database migration from the `backend` directory:
+
+```powershell
+cd backend
+python -m alembic upgrade head
+python -m alembic current
+```
+
+Alembic records the applied revision in PostgreSQL's `alembic_version` table.
+Each migration is an ordered schema change, allowing a new or existing TrialOps
+database to reach the same table structure without manual SQL.
+
 Stop the local database without deleting its stored data:
 
 ```powershell
@@ -75,7 +87,7 @@ application starts.
 | `TRIALOPS_POSTGRES_USER` | Local PostgreSQL username | `trialops` |
 | `TRIALOPS_POSTGRES_PASSWORD` | Local PostgreSQL password | none |
 | `TRIALOPS_POSTGRES_DB` | Local PostgreSQL database name | `trialops` |
-| `TRIALOPS_POSTGRES_PORT` | Host port published by Docker | `5432` |
+| `TRIALOPS_POSTGRES_PORT` | Host port published by Docker | `55432` |
 | `TRIALOPS_DATABASE_URL` | SQLAlchemy URL using `postgresql+psycopg` | local PostgreSQL |
 
 An unsupported value causes application startup to fail rather than silently
@@ -94,8 +106,8 @@ match the corresponding local PostgreSQL values.
 Run these commands from the `backend` directory:
 
 ```powershell
-python -m ruff check src tests
-python -m ruff format --check src tests
+python -m ruff check src tests migrations
+python -m ruff format --check src tests migrations
 python -m mypy
 python -m pytest --cov=trialops
 ```
