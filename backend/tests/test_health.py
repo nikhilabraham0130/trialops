@@ -2,12 +2,14 @@
 
 import asyncio
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 
 from trialops.api.routes.health import router as health_router
 from trialops.core.config import RuntimeEnvironment, Settings
-from trialops.main import create_app
+from trialops.db.session import DatabaseResources
+from trialops.main import create_app, lifespan
 
 
 async def _request(application: FastAPI, path: str) -> Response:
@@ -48,3 +50,36 @@ def test_readiness_fails_without_application_configuration() -> None:
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Application configuration is unavailable."}
+
+
+def test_application_lifespan_disposes_database_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Application shutdown releases the database connection pool."""
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    disposed = False
+
+    async def record_disposal(database: DatabaseResources) -> None:
+        nonlocal disposed
+        disposed = True
+
+    monkeypatch.setattr(DatabaseResources, "dispose", record_disposal)
+
+    async def run_lifespan() -> None:
+        async with application.router.lifespan_context(application):
+            assert not disposed
+        assert disposed
+
+    asyncio.run(run_lifespan())
+
+
+def test_application_lifespan_ignores_non_database_state() -> None:
+    """Shutdown remains safe if initialization did not create database resources."""
+    application = FastAPI(lifespan=lifespan)
+    application.state.database = None
+
+    async def run_lifespan() -> None:
+        async with application.router.lifespan_context(application):
+            pass
+
+    asyncio.run(run_lifespan())

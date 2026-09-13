@@ -3,7 +3,12 @@
 from enum import StrEnum
 from functools import lru_cache
 
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+DEFAULT_DATABASE_URL = "postgresql+psycopg://trialops:trialops@localhost:5432/trialops"
 
 
 class RuntimeEnvironment(StrEnum):
@@ -36,6 +41,34 @@ class Settings(BaseSettings):
 
     env: RuntimeEnvironment = RuntimeEnvironment.DEVELOPMENT
     log_level: LogLevel = LogLevel.INFO
+    database_url: SecretStr = SecretStr(DEFAULT_DATABASE_URL)
+
+    @field_validator("database_url")
+    @classmethod
+    def validate_database_url(cls, value: SecretStr) -> SecretStr:
+        """Require the PostgreSQL driver and connection details used by TrialOps."""
+        try:
+            url = make_url(value.get_secret_value())
+        except (ArgumentError, ValueError):
+            raise ValueError("database URL is not a valid SQLAlchemy URL") from None
+
+        if url.drivername != "postgresql+psycopg":
+            raise ValueError("database URL must use the postgresql+psycopg driver")
+
+        missing_parts = [
+            name
+            for name, part in (
+                ("username", url.username),
+                ("host", url.host),
+                ("database name", url.database),
+            )
+            if not part
+        ]
+        if missing_parts:
+            missing = ", ".join(missing_parts)
+            raise ValueError(f"database URL is missing: {missing}")
+
+        return value
 
 
 @lru_cache

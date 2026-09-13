@@ -13,7 +13,10 @@ python -m pip install --editable ".\backend[dev]"
 ```
 
 `--editable` means Python imports the package from this source directory. Code
-changes are therefore available without reinstalling the package.
+changes are therefore available without reinstalling the package. The install
+also includes SQLAlchemy, which manages database connections and transactions,
+and Psycopg, which is the PostgreSQL driver SQLAlchemy uses to communicate with
+the database server.
 
 ## Run the API
 
@@ -42,9 +45,16 @@ application starts.
 | --- | --- | --- |
 | `TRIALOPS_ENV` | `development`, `test`, `production` | `development` |
 | `TRIALOPS_LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | `INFO` |
+| `TRIALOPS_DATABASE_URL` | SQLAlchemy URL using `postgresql+psycopg` | local PostgreSQL |
 
 An unsupported value causes application startup to fail rather than silently
 using an unintended configuration.
+
+Database URLs have the shape
+`postgresql+psycopg://username:password@host:port/database`. TrialOps keeps this
+value wrapped as a secret so accidental settings output does not reveal the
+password. The committed `.env.example` contains development-only placeholder
+credentials; real credentials belong only in the ignored `.env` file.
 
 ## Local quality checks
 
