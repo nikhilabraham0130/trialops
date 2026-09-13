@@ -1,0 +1,45 @@
+{
+  "datasetJSONCreationDateTime": "2026-09-12T12:00:00",
+  "datasetJSONVersion": "1.1.0",
+  "fileOID": "TRIALOPS-TEST-001.dm",
+  "dbLastModifiedDateTime": "2026-09-12T11:30:00",
+  "originator": "TrialOps",
+  "sourceSystem": {
+    "name": "TrialOps Fixture Generator",
+    "version": "1.0"
+  },
+  "studyOID": "TRIALOPS-TEST-001",
+  "metaDataVersionOID": "TRIALOPS.SDTMIG.3.1.2",
+  "metaDataRef": "define.xml",
+  "itemGroupOID": "DM",
+  "records": 2,
+  "name": "DM",
+  "label": "TrialOps-owned demographics fixture",
+  "columns": [
+    {
+      "itemOID": "DM.STUDYID",
+      "name": "STUDYID",
+      "label": "Study Identifier",
+      "dataType": "string",
+      "length": 20
+    },
+    {
+      "itemOID": "DM.USUBJID",
+      "name": "USUBJID",
+      "label": "Unique Subject Identifier",
+      "dataType": "string",
+      "length": 30,
+      "keySequence": 1
+    },
+    {
+      "itemOID": "DM.AGE",
+      "name": "AGE",
+      "label": "Age",
+      "dataType": "integer"
+    }
+  ],
+  "rows": [
+    ["TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", 34],
+    ["TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-002", 57]
+  ]
+}
