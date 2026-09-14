@@ -18,8 +18,13 @@ def _constraint_names(table_name: str, constraint_type: type[object]) -> set[str
 
 
 def test_metadata_registers_foundational_catalog_tables() -> None:
-    """Alembic sees every table required for the dataset catalog."""
-    assert set(Base.metadata.tables) == {"study", "dataset_version", "source_artifact"}
+    """Alembic sees the catalog and initial normalized clinical table."""
+    assert set(Base.metadata.tables) == {
+        "study",
+        "dataset_version",
+        "source_artifact",
+        "dm_subject",
+    }
 
 
 def test_dataset_versions_reference_studies_and_prevent_duplicates() -> None:
@@ -64,3 +69,24 @@ def test_source_artifacts_reference_versions_and_validate_integrity_fields() -> 
     kind_type = source_artifact.c.kind.type
     assert isinstance(kind_type, Enum)
     assert kind_type.enums == [kind.value for kind in ArtifactKind]
+
+
+def test_dm_subjects_are_versioned_and_protected_from_duplicates() -> None:
+    """Every DM row has source lineage and one identity within its dataset."""
+    dm_subject = Base.metadata.tables["dm_subject"]
+
+    foreign_keys = _constraint_names("dm_subject", ForeignKeyConstraint)
+    unique_constraints = _constraint_names("dm_subject", UniqueConstraint)
+    check_constraints = _constraint_names("dm_subject", CheckConstraint)
+
+    assert "fk_dm_subject_dataset_version_id_dataset_version" in foreign_keys
+    assert "uq_dm_subject_dataset_record_number" in unique_constraints
+    assert "uq_dm_subject_dataset_unique_subject" in unique_constraints
+    assert "ck_dm_subject_positive_source_record_number" in check_constraints
+    assert "ck_dm_subject_age_range" in check_constraints
+    assert "ck_dm_subject_nonempty_unique_subject_id" in check_constraints
+    assert "ck_dm_subject_nonempty_subject_id" in check_constraints
+    assert dm_subject.c.dataset_version_id.foreign_keys.pop().target_fullname == (
+        "dataset_version.id"
+    )
+    assert all(not column.nullable for column in dm_subject.columns)

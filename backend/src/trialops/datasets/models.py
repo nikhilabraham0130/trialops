@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     String,
     UniqueConstraint,
     func,
@@ -126,3 +127,44 @@ class SourceArtifactRecord(Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
+
+
+class DMSubject(Base):
+    """One normalized demographics record within an immutable dataset version."""
+
+    __tablename__ = "dm_subject"
+    __table_args__ = (
+        CheckConstraint("source_record_number > 0", name="positive_source_record_number"),
+        CheckConstraint("age BETWEEN 0 AND 130", name="age_range"),
+        CheckConstraint("btrim(unique_subject_id) <> ''", name="nonempty_unique_subject_id"),
+        CheckConstraint("btrim(subject_id) <> ''", name="nonempty_subject_id"),
+        UniqueConstraint(
+            "dataset_version_id",
+            "source_record_number",
+            name="uq_dm_subject_dataset_record_number",
+        ),
+        UniqueConstraint(
+            "dataset_version_id",
+            "unique_subject_id",
+            name="uq_dm_subject_dataset_unique_subject",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+        primary_key=True,
+    )
+    dataset_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataset_version.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    source_record_number: Mapped[int] = mapped_column(Integer)
+    unique_subject_id: Mapped[str] = mapped_column(String)
+    subject_id: Mapped[str] = mapped_column(String)
+    age: Mapped[int] = mapped_column(Integer)
+    age_unit: Mapped[str] = mapped_column(String)
+    sex: Mapped[str] = mapped_column(String)
+    race: Mapped[str] = mapped_column(String)
+    planned_arm: Mapped[str] = mapped_column(String)
+    actual_arm: Mapped[str] = mapped_column(String)
