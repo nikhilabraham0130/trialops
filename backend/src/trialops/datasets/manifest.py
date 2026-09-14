@@ -9,7 +9,10 @@ from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, ValidationError, 
 
 Sha256Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 GitRevision = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
-ArtifactFilename = Annotated[str, Field(min_length=1, pattern=r"^[^/\\]+$")]
+ArtifactFilename = Annotated[
+    str,
+    Field(min_length=1, max_length=255, pattern=r"^[^/\\]+$"),
+]
 DomainCode = Annotated[str, Field(pattern=r"^[A-Z]{2,8}$")]
 
 
@@ -64,7 +67,7 @@ class SourceManifest(BaseModel):
 
     manifest_version: Literal["1.0"]
     source: SourceIdentity
-    study_id: str = Field(min_length=1)
+    study_id: str = Field(min_length=1, max_length=128)
     dataset_json_version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     artifacts: tuple[SourceArtifact, ...] = Field(min_length=1)
 

@@ -128,6 +128,30 @@ def test_manifest_rejects_domain_on_define_xml(tmp_path: Path) -> None:
         load_source_manifest(path)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("study_id", "s" * 129),
+        ("filename", "f" * 256),
+    ],
+)
+def test_manifest_rejects_values_too_large_for_catalog_columns(
+    tmp_path: Path,
+    field: str,
+    value: str,
+) -> None:
+    """Validated manifest values always fit their PostgreSQL columns."""
+    invalid_manifest = _minimal_manifest()
+    if field == "study_id":
+        invalid_manifest["study_id"] = value
+    else:
+        invalid_manifest["artifacts"][0]["filename"] = value
+    path = _write_manifest(tmp_path, invalid_manifest)
+
+    with pytest.raises(ManifestLoadError, match="Invalid source manifest"):
+        load_source_manifest(path)
+
+
 def test_manifest_reports_missing_file(tmp_path: Path) -> None:
     """A missing manifest produces a stable application-specific error."""
     missing_path = tmp_path / "missing.json"
