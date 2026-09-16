@@ -71,8 +71,37 @@ documentation will be available at `http://127.0.0.1:8000/docs`.
 
 - `GET /health/live` confirms that the API process is running.
 - `GET /health/ready` confirms that the application has valid configuration and
-  is ready to receive requests. Database readiness will be added when PostgreSQL
-  is introduced.
+  is ready to receive requests. A database-connectivity readiness check is still
+  deferred.
+
+## Study catalog
+
+`GET /studies` returns every registered study and each of its dataset versions,
+including the normalized DM subject count for that exact version. The endpoint
+does not silently choose a "latest" version because callers must know which
+immutable data snapshot produced a count.
+
+Example response:
+
+```json
+{
+  "studies": [
+    {
+      "id": "e0673be2-39ad-4b26-b6fb-4f322e8cd553",
+      "study_oid": "CDISCPILOT01",
+      "title": null,
+      "dataset_versions": [
+        {
+          "id": "84e8aba3-f839-4e00-8d77-93e8c9752f17",
+          "version_label": "cdisc-pilot-667511d4",
+          "status": "RECEIVED",
+          "subject_count": 306
+        }
+      ]
+    }
+  ]
+}
+```
 
 ## Configuration
 

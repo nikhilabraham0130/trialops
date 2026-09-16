@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from trialops.api.routes.health import router as health_router
+from trialops.api.routes.studies import router as studies_router
 from trialops.core.config import Settings, get_settings
 from trialops.db.session import DatabaseResources, create_database_resources
 
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = app_settings
     application.state.database = database
     application.include_router(health_router)
+    application.include_router(studies_router)
 
     return application
 
