@@ -28,6 +28,24 @@ def test_liveness_returns_service_status() -> None:
     assert response.json() == {"status": "ok", "service": "trialops-api"}
 
 
+def test_application_allows_configured_frontend_origin() -> None:
+    """The local React application can read API responses in a browser."""
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def request_with_origin() -> Response:
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.get(
+                "/health/live",
+                headers={"Origin": "http://localhost:5173"},
+            )
+
+    response = asyncio.run(request_with_origin())
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
 def test_readiness_confirms_application_configuration() -> None:
     """The readiness endpoint confirms validated settings are available."""
     application = create_app(Settings(env=RuntimeEnvironment.TEST))

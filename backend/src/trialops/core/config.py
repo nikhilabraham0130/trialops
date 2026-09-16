@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     env: RuntimeEnvironment = RuntimeEnvironment.DEVELOPMENT
     log_level: LogLevel = LogLevel.INFO
     database_url: SecretStr = SecretStr(DEFAULT_DATABASE_URL)
+    cors_origins: tuple[str, ...] = (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    )
 
     @field_validator("database_url")
     @classmethod
@@ -70,6 +74,16 @@ class Settings(BaseSettings):
             missing = ", ".join(missing_parts)
             raise ValueError(f"database URL is missing: {missing}")
 
+        return value
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Require explicit browser origins rather than unrestricted access."""
+        if not value:
+            raise ValueError("at least one CORS origin is required")
+        if "*" in value:
+            raise ValueError("wildcard CORS origins are not permitted")
         return value
 
 

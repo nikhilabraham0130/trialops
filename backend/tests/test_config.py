@@ -11,6 +11,7 @@ def test_settings_have_safe_local_defaults(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.delenv("TRIALOPS_ENV", raising=False)
     monkeypatch.delenv("TRIALOPS_LOG_LEVEL", raising=False)
     monkeypatch.delenv("TRIALOPS_DATABASE_URL", raising=False)
+    monkeypatch.delenv("TRIALOPS_CORS_ORIGINS", raising=False)
 
     settings = Settings()
 
@@ -21,6 +22,10 @@ def test_settings_have_safe_local_defaults(monkeypatch: pytest.MonkeyPatch) -> N
         == "postgresql+psycopg://trialops:change-me-for-local-development@127.0.0.1:55432/trialops"
     )
     assert str(settings.database_url) == "**********"
+    assert settings.cors_origins == (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    )
 
 
 def test_settings_load_trialops_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -31,6 +36,7 @@ def test_settings_load_trialops_environment_variables(monkeypatch: pytest.Monkey
         "TRIALOPS_DATABASE_URL",
         "postgresql+psycopg://app:secret@database.example:5433/trialops_test",
     )
+    monkeypatch.setenv("TRIALOPS_CORS_ORIGINS", '["https://trialops.example"]')
 
     settings = Settings()
 
@@ -40,6 +46,7 @@ def test_settings_load_trialops_environment_variables(monkeypatch: pytest.Monkey
         settings.database_url.get_secret_value()
         == "postgresql+psycopg://app:secret@database.example:5433/trialops_test"
     )
+    assert settings.cors_origins == ("https://trialops.example",)
 
 
 def test_settings_reject_unknown_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,3 +71,10 @@ def test_settings_reject_invalid_database_urls(database_url: str) -> None:
     """Startup fails for malformed, unsupported, or incomplete database URLs."""
     with pytest.raises(ValidationError):
         Settings(database_url=SecretStr(database_url))
+
+
+@pytest.mark.parametrize("cors_origins", [(), ("*",)])
+def test_settings_reject_unsafe_cors_origins(cors_origins: tuple[str, ...]) -> None:
+    """CORS must name at least one explicit trusted browser origin."""
+    with pytest.raises(ValidationError):
+        Settings(cors_origins=cors_origins)
