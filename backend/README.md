@@ -143,6 +143,25 @@ zeros. Storage does **not** validate clinical reference ranges or timing, or
 calculate ALT abnormalities. Those steps need their own tested rules. The
 dataset stays in `RECEIVED` status until the validation workflow is built.
 
+## First analysis-specific validation rule
+
+`trialops.validation.alt.check_stored_alt_prerequisites` examines ALT rows from
+one explicitly selected dataset version. A row needs a finite numeric result
+and a positive, finite upper reference limit before a future `ALT > 3 × ULN`
+calculation could use it. The rule returns counts of ALT rows and eligible
+*rows*, plus structured findings identifying excluded source rows. Numeric zero
+is a valid result; a zero upper reference limit is not, because multiplying it
+cannot produce a meaningful normal-range threshold.
+
+This is a prerequisite check, **not** an ALT abnormality calculation, a subject
+count, or full dataset validation. Baseline/post-baseline timing, units, and
+other clinical rules still need to be specified. It does not change dataset
+status from `RECEIVED` or authorize any clinical conclusion.
+
+On the local pilot snapshot, the check found 1,814 ALT rows with both required
+numeric inputs and no findings. This only verifies those two inputs; it does
+not determine whether any ALT value is abnormal.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
