@@ -111,9 +111,16 @@ fixed row positions, preserves the source row number, and requires a unique
 `USUBJID` + `AESEQ` pair for each event. It also keeps `AESEV` (intensity) separate
 from `AESER` (seriousness). A blank `AEENDTC` becomes `None`.
 
-This parser does **not** yet store AE events, link them to DM subjects, determine
-whether an event was treatment-emergent, or calculate incidence. Date strings
-are preserved for later clinical date validation rather than interpreted here.
+`store_adverse_events` saves a parsed batch in one transaction. An AE event can
+only reference a DM subject with the same dataset version, and PostgreSQL
+enforces that relationship with a composite foreign key. The storage function
+also rejects repeated imports and missing subjects before inserting any rows.
+
+The local demo import verified and stored 1,191 AE rows alongside 306 DM
+subjects. These are raw event records, not a validated safety analysis. A
+dataset remains in `RECEIVED` status until the validation workflow is built.
+Date strings are preserved for later clinical date validation; treatment
+emergence and subject-level incidence are not calculated by this importer.
 
 ## Configuration
 

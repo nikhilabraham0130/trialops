@@ -2,6 +2,7 @@
 
 from sqlalchemy import CheckConstraint, Enum, ForeignKeyConstraint, UniqueConstraint
 
+from trialops.datasets.adverse_events import AdverseEventSeverity
 from trialops.datasets.manifest import ArtifactKind
 from trialops.datasets.models import DatasetVersionStatus
 from trialops.db.models import Base
@@ -24,6 +25,7 @@ def test_metadata_registers_foundational_catalog_tables() -> None:
         "dataset_version",
         "source_artifact",
         "dm_subject",
+        "ae_event",
     }
 
 
@@ -90,3 +92,34 @@ def test_dm_subjects_are_versioned_and_protected_from_duplicates() -> None:
         "dataset_version.id"
     )
     assert all(not column.nullable for column in dm_subject.columns)
+
+
+def test_ae_events_reference_dm_subjects_in_the_same_version() -> None:
+    """The database rejects an AE row without a matching versioned DM subject."""
+    ae_event = Base.metadata.tables["ae_event"]
+    foreign_keys = [
+        constraint
+        for constraint in ae_event.constraints
+        if isinstance(constraint, ForeignKeyConstraint)
+    ]
+
+    assert len(foreign_keys) == 1
+    assert str(foreign_keys[0].name) == "fk_ae_event_dataset_subject_dm_subject"
+    assert {element.target_fullname for element in foreign_keys[0].elements} == {
+        "dm_subject.dataset_version_id",
+        "dm_subject.unique_subject_id",
+    }
+
+    unique_constraints = _constraint_names("ae_event", UniqueConstraint)
+    check_constraints = _constraint_names("ae_event", CheckConstraint)
+    assert "uq_ae_event_dataset_record_number" in unique_constraints
+    assert "uq_ae_event_dataset_subject_sequence" in unique_constraints
+    assert "ck_ae_event_positive_source_record_number" in check_constraints
+    assert "ck_ae_event_positive_event_sequence" in check_constraints
+    assert "ck_ae_event_serious_flag_values" in check_constraints
+
+    severity_type = ae_event.c.severity.type
+    assert isinstance(severity_type, Enum)
+    assert severity_type.enums == [severity.value for severity in AdverseEventSeverity]
+    assert ae_event.c.end_date_text.nullable
+    assert all(not column.nullable for column in ae_event.columns if column.name != "end_date_text")
