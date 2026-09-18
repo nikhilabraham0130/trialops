@@ -1,8 +1,9 @@
 """Tests for foundational SQLAlchemy table models."""
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, Enum, ForeignKeyConstraint, Numeric, UniqueConstraint
 
 from trialops.datasets.adverse_events import AdverseEventSeverity
+from trialops.datasets.laboratory_results import NormalRangeIndicator
 from trialops.datasets.manifest import ArtifactKind
 from trialops.datasets.models import DatasetVersionStatus
 from trialops.db.models import Base
@@ -26,6 +27,7 @@ def test_metadata_registers_foundational_catalog_tables() -> None:
         "source_artifact",
         "dm_subject",
         "ae_event",
+        "lb_result",
     }
 
 
@@ -123,3 +125,49 @@ def test_ae_events_reference_dm_subjects_in_the_same_version() -> None:
     assert severity_type.enums == [severity.value for severity in AdverseEventSeverity]
     assert ae_event.c.end_date_text.nullable
     assert all(not column.nullable for column in ae_event.columns if column.name != "end_date_text")
+
+
+def test_lb_results_reference_dm_subjects_in_the_same_version() -> None:
+    """LB rows are version-linked and retain missing numeric values as NULL."""
+    lb_result = Base.metadata.tables["lb_result"]
+    foreign_keys = [
+        constraint
+        for constraint in lb_result.constraints
+        if isinstance(constraint, ForeignKeyConstraint)
+    ]
+    assert len(foreign_keys) == 1
+    assert str(foreign_keys[0].name) == "fk_lb_result_dataset_subject_dm_subject"
+    assert {element.target_fullname for element in foreign_keys[0].elements} == {
+        "dm_subject.dataset_version_id",
+        "dm_subject.unique_subject_id",
+    }
+
+    unique_constraints = _constraint_names("lb_result", UniqueConstraint)
+    check_constraints = _constraint_names("lb_result", CheckConstraint)
+    assert "uq_lb_result_dataset_record_number" in unique_constraints
+    assert "uq_lb_result_dataset_subject_sequence" in unique_constraints
+    assert "ck_lb_result_positive_source_record_number" in check_constraints
+    assert "ck_lb_result_positive_result_sequence" in check_constraints
+    assert "ck_lb_result_baseline_flag_value" in check_constraints
+
+    for name in ("standard_result", "lower_reference_limit", "upper_reference_limit"):
+        assert isinstance(lb_result.c[name].type, Numeric)
+        assert lb_result.c[name].nullable
+
+    range_type = lb_result.c.range_indicator.type
+    assert isinstance(range_type, Enum)
+    assert range_type.enums == [indicator.value for indicator in NormalRangeIndicator]
+    assert lb_result.c.baseline_flag.nullable
+    assert all(
+        not column.nullable
+        for column in lb_result.columns
+        if column.name
+        not in {
+            "standard_result",
+            "standard_unit",
+            "lower_reference_limit",
+            "upper_reference_limit",
+            "range_indicator",
+            "baseline_flag",
+        }
+    )

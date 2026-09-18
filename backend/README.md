@@ -131,9 +131,17 @@ Missing numeric results, units, reference limits, range indicators, and baseline
 flags become `None`; a numeric zero remains zero. Numeric values use `Decimal`
 so the importer does not introduce binary floating-point rounding.
 
-The public pilot LB file contains 59,580 rows. This parser does **not** yet store
-them in PostgreSQL, validate clinical reference ranges or timing, or calculate
-ALT abnormalities. Those steps need their own tested rules.
+`store_laboratory_results` saves parsed rows in batches within one transaction.
+Every result must belong to a DM subject in the same dataset version. PostgreSQL
+also enforces that relationship, rejects duplicate row identities, and keeps
+missing numeric values as `NULL` rather than zero. If any batch fails, the
+whole import rolls back.
+
+The verified public pilot LB file has now been stored locally: 59,580 rows from
+254 subjects, including 880 missing numeric results and 1,777 actual numeric
+zeros. Storage does **not** validate clinical reference ranges or timing, or
+calculate ALT abnormalities. Those steps need their own tested rules. The
+dataset stays in `RECEIVED` status until the validation workflow is built.
 
 ## Configuration
 

@@ -5,6 +5,7 @@ from trialops.datasets.models import (
     DatasetVersion,
     DatasetVersionStatus,
     DMSubject,
+    LBResult,
     SourceArtifactRecord,
 )
 from trialops.db.base import Base
@@ -14,6 +15,7 @@ __all__ = [
     "AEEvent",
     "Base",
     "DMSubject",
+    "LBResult",
     "DatasetVersion",
     "DatasetVersionStatus",
     "SourceArtifactRecord",
