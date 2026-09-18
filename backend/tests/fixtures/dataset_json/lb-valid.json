@@ -1,0 +1,37 @@
+{
+  "datasetJSONCreationDateTime": "2026-09-18T12:00:00",
+  "datasetJSONVersion": "1.1.0",
+  "fileOID": "TRIALOPS-TEST-001.lb",
+  "dbLastModifiedDateTime": "2026-09-18T11:30:00",
+  "originator": "TrialOps",
+  "sourceSystem": {
+    "name": "TrialOps Fixture Generator",
+    "version": "1.0"
+  },
+  "studyOID": "TRIALOPS-TEST-001",
+  "metaDataVersionOID": "TRIALOPS.SDTMIG.3.1.2",
+  "metaDataRef": "define.xml",
+  "itemGroupOID": "LB",
+  "records": 2,
+  "name": "LB",
+  "label": "TrialOps-owned laboratory-result fixture",
+  "columns": [
+    {"itemOID": "LB.LBSEQ", "name": "LBSEQ", "label": "Result sequence", "dataType": "integer"},
+    {"itemOID": "LB.STUDYID", "name": "STUDYID", "label": "Study identifier", "dataType": "string"},
+    {"itemOID": "LB.USUBJID", "name": "USUBJID", "label": "Subject identifier", "dataType": "string"},
+    {"itemOID": "LB.DOMAIN", "name": "DOMAIN", "label": "Domain", "dataType": "string"},
+    {"itemOID": "LB.LBTESTCD", "name": "LBTESTCD", "label": "Test code", "dataType": "string"},
+    {"itemOID": "LB.LBTEST", "name": "LBTEST", "label": "Test name", "dataType": "string"},
+    {"itemOID": "LB.LBSTRESN", "name": "LBSTRESN", "label": "Standard numeric result", "dataType": "float"},
+    {"itemOID": "LB.LBSTRESU", "name": "LBSTRESU", "label": "Standard unit", "dataType": "string"},
+    {"itemOID": "LB.LBSTNRLO", "name": "LBSTNRLO", "label": "Standard lower limit", "dataType": "integer"},
+    {"itemOID": "LB.LBSTNRHI", "name": "LBSTNRHI", "label": "Standard upper limit", "dataType": "integer"},
+    {"itemOID": "LB.LBNRIND", "name": "LBNRIND", "label": "Normal-range indicator", "dataType": "string"},
+    {"itemOID": "LB.LBBLFL", "name": "LBBLFL", "label": "Baseline flag", "dataType": "string"},
+    {"itemOID": "LB.LBDTC", "name": "LBDTC", "label": "Collection date and time", "dataType": "datetime"}
+  ],
+  "rows": [
+    [1, "TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", "LB", "ALT", "Alanine Aminotransferase", 90.5, "U/L", 0, 40, "HIGH", "Y", "2026-09-01T09:30"],
+    [2, "TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", "LB", "ALB", "Albumin", "", "", "", null, "", "", "2026-09-02T10:15"]
+  ]
+}

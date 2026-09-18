@@ -122,6 +122,19 @@ dataset remains in `RECEIVED` status until the validation workflow is built.
 Date strings are preserved for later clinical date validation; treatment
 emergence and subject-level incidence are not calculated by this importer.
 
+## Laboratory-result parsing foundation
+
+`trialops.datasets.laboratory_results.parse_laboratory_results` converts LB
+Dataset-JSON rows into typed laboratory results using the file's column names.
+It retains each source row number and the `USUBJID` + `LBSEQ` result identity.
+Missing numeric results, units, reference limits, range indicators, and baseline
+flags become `None`; a numeric zero remains zero. Numeric values use `Decimal`
+so the importer does not introduce binary floating-point rounding.
+
+The public pilot LB file contains 59,580 rows. This parser does **not** yet store
+them in PostgreSQL, validate clinical reference ranges or timing, or calculate
+ALT abnormalities. Those steps need their own tested rules.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
