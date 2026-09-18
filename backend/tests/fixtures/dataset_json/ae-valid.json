@@ -1,0 +1,34 @@
+{
+  "datasetJSONCreationDateTime": "2026-09-18T12:00:00",
+  "datasetJSONVersion": "1.1.0",
+  "fileOID": "TRIALOPS-TEST-001.ae",
+  "dbLastModifiedDateTime": "2026-09-18T11:30:00",
+  "originator": "TrialOps",
+  "sourceSystem": {
+    "name": "TrialOps Fixture Generator",
+    "version": "1.0"
+  },
+  "studyOID": "TRIALOPS-TEST-001",
+  "metaDataVersionOID": "TRIALOPS.SDTMIG.3.1.2",
+  "metaDataRef": "define.xml",
+  "itemGroupOID": "AE",
+  "records": 2,
+  "name": "AE",
+  "label": "TrialOps-owned adverse-event fixture",
+  "columns": [
+    {"itemOID": "AE.AESEQ", "name": "AESEQ", "label": "Event sequence", "dataType": "integer"},
+    {"itemOID": "AE.STUDYID", "name": "STUDYID", "label": "Study identifier", "dataType": "string"},
+    {"itemOID": "AE.USUBJID", "name": "USUBJID", "label": "Subject identifier", "dataType": "string"},
+    {"itemOID": "AE.DOMAIN", "name": "DOMAIN", "label": "Domain", "dataType": "string"},
+    {"itemOID": "AE.AETERM", "name": "AETERM", "label": "Reported term", "dataType": "string"},
+    {"itemOID": "AE.AEDECOD", "name": "AEDECOD", "label": "Preferred term", "dataType": "string"},
+    {"itemOID": "AE.AESEV", "name": "AESEV", "label": "Severity", "dataType": "string"},
+    {"itemOID": "AE.AESER", "name": "AESER", "label": "Serious flag", "dataType": "string"},
+    {"itemOID": "AE.AESTDTC", "name": "AESTDTC", "label": "Start date", "dataType": "date"},
+    {"itemOID": "AE.AEENDTC", "name": "AEENDTC", "label": "End date", "dataType": "date"}
+  ],
+  "rows": [
+    [1, "TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", "AE", "Headache", "HEADACHE", "MILD", "N", "2026-09-01", "2026-09-02"],
+    [2, "TRIALOPS-TEST-001", "TRIALOPS-SUBJECT-001", "AE", "Nausea", "NAUSEA", "SEVERE", "Y", "2026-09-03", ""]
+  ]
+}

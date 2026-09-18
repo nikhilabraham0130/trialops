@@ -103,6 +103,18 @@ Example response:
 }
 ```
 
+## Adverse-event parsing foundation
+
+`trialops.datasets.adverse_events.parse_adverse_events` turns an AE Dataset-JSON
+document into typed event records. It uses the file's column metadata rather than
+fixed row positions, preserves the source row number, and requires a unique
+`USUBJID` + `AESEQ` pair for each event. It also keeps `AESEV` (intensity) separate
+from `AESER` (seriousness). A blank `AEENDTC` becomes `None`.
+
+This parser does **not** yet store AE events, link them to DM subjects, determine
+whether an event was treatment-emergent, or calculate incidence. Date strings
+are preserved for later clinical date validation rather than interpreted here.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
