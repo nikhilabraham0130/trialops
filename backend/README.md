@@ -162,6 +162,21 @@ On the local pilot snapshot, the check found 1,814 ALT rows with both required
 numeric inputs and no findings. This only verifies those two inputs; it does
 not determine whether any ALT value is abnormal.
 
+## Deterministic ALT threshold calculation
+
+`trialops.analytics.lab_abnormalities.calculate_stored_alt_gt_3x_uln` applies
+the versioned method `alt-gt-3x-uln/1.0`. For each eligible ALT measurement it
+calculates `3 × upper reference limit` and records evidence only when the ALT
+result is strictly greater than that threshold. The output keeps measurement
+and distinct-subject counts separate because one subject may have multiple
+qualifying measurements.
+
+The local pilot snapshot produces 4 qualifying measurements across 3 subjects.
+None of those measurements is marked as the selected baseline result. They are
+reported as `NOT_IDENTIFIED_AS_BASELINE`, not as post-baseline, because a blank
+`LBBLFL` alone does not prove that collection occurred after treatment began.
+This result is not yet an incidence rate or a treatment-arm comparison.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
