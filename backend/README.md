@@ -177,6 +177,19 @@ reported as `NOT_IDENTIFIED_AS_BASELINE`, not as post-baseline, because a blank
 `LBBLFL` alone does not prove that collection occurred after treatment began.
 This result is not yet an incidence rate or a treatment-arm comparison.
 
+The frontend can request the same calculation through:
+
+```text
+GET /dataset-versions/{dataset_version_id}/analytics/alt-gt-3x-uln
+```
+
+FastAPI validates the UUID in the URL, obtains a short-lived database session,
+and calls the deterministic Python function. The JSON response contains the
+method version, summary counts, validation findings, timing limitation, and
+source-backed evidence rows. The endpoint is read-only and does not create an
+analysis, approval, or audit record. An unknown dataset-version ID returns a
+controlled `404` response rather than an internal database error.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`

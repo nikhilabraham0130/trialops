@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from trialops.api.routes.analytics import router as analytics_router
 from trialops.api.routes.health import router as health_router
 from trialops.api.routes.studies import router as studies_router
 from trialops.core.config import Settings, get_settings
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET"],
         allow_headers=["*"],
     )
+    application.include_router(analytics_router)
     application.include_router(health_router)
     application.include_router(studies_router)
 
