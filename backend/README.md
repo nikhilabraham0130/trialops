@@ -203,9 +203,17 @@ version, approved tool call, and the fact that confirmation is required. No
 tool executes during plan creation. Unknown tool names, extra model-generated
 fields, blank purposes, and blank questions are rejected.
 
-This is the safety boundary for the future model adapter. There is no live LLM
-call yet: the next layer will implement the same contract first with a fake
-model so orchestration tests remain deterministic and free of API cost.
+`propose_analysis_plan` is the first orchestrator step. It gives a provider-
+neutral model interface the question and approved catalog, validates the raw
+JSON response centrally, and binds the proposal to application-controlled
+inputs. Provider failures become safe error codes, and invalid model output is
+rejected without executing a tool.
+
+`FakePlanModel` implements that interface without network access or an API key.
+It records exactly what it received and returns configured JSON, making the
+planning workflow deterministic and free of API cost in tests. There is still
+no live LLM call and no tool execution; the next layers will expose plan
+creation through the API and add explicit confirmation before execution.
 
 ## Configuration
 
