@@ -190,6 +190,23 @@ source-backed evidence rows. The endpoint is read-only and does not create an
 analysis, approval, or audit record. An unknown dataset-version ID returns a
 controlled `404` response rather than an internal database error.
 
+## Agent control foundation
+
+The initial agent catalog exposes only one implemented capability:
+`calculate_alt_gt_3x_uln`. A language model may propose that tool and provide a
+short, user-visible purpose, but it cannot supply the dataset-version ID. The
+application binds the proposal to the immutable version the user selected.
+
+The resulting `AnalysisPlan` is typed, immutable, and starts in
+`AWAITING_CONFIRMATION`. It records the original question, selected dataset
+version, approved tool call, and the fact that confirmation is required. No
+tool executes during plan creation. Unknown tool names, extra model-generated
+fields, blank purposes, and blank questions are rejected.
+
+This is the safety boundary for the future model adapter. There is no live LLM
+call yet: the next layer will implement the same contract first with a fake
+model so orchestration tests remain deterministic and free of API cost.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
