@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 
+import {
+  getAltAbnormalities,
+  type AltAbnormalityResponse,
+} from "./api/analytics";
 import { getStudies, type StudyListResponse } from "./api/studies";
 import "./styles.css";
 
 type LoadStudies = (signal?: AbortSignal) => Promise<StudyListResponse>;
+type LoadAltAnalysis = (
+  datasetVersionId: string,
+  signal?: AbortSignal,
+) => Promise<AltAbnormalityResponse>;
 
 type StudyState =
   | { status: "loading" }
@@ -12,10 +20,20 @@ type StudyState =
 
 interface AppProps {
   loadStudies?: LoadStudies;
+  loadAltAnalysis?: LoadAltAnalysis;
 }
 
-export function App({ loadStudies = getStudies }: AppProps) {
+type AltAnalysisState =
+  | { status: "loading" }
+  | { status: "loaded"; response: AltAbnormalityResponse }
+  | { status: "error" };
+
+export function App({
+  loadStudies = getStudies,
+  loadAltAnalysis = getAltAbnormalities,
+}: AppProps) {
   const [state, setState] = useState<StudyState>({ status: "loading" });
+  const [altAnalyses, setAltAnalyses] = useState<Record<string, AltAnalysisState>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -30,6 +48,26 @@ export function App({ loadStudies = getStudies }: AppProps) {
 
     return () => controller.abort();
   }, [loadStudies]);
+
+  const runAltAnalysis = (datasetVersionId: string) => {
+    setAltAnalyses((current) => ({
+      ...current,
+      [datasetVersionId]: { status: "loading" },
+    }));
+    void loadAltAnalysis(datasetVersionId)
+      .then((response) =>
+        setAltAnalyses((current) => ({
+          ...current,
+          [datasetVersionId]: { status: "loaded", response },
+        })),
+      )
+      .catch(() =>
+        setAltAnalyses((current) => ({
+          ...current,
+          [datasetVersionId]: { status: "error" },
+        })),
+      );
+  };
 
   return (
     <div className="app-shell">
@@ -92,20 +130,129 @@ export function App({ loadStudies = getStudies }: AppProps) {
                   </div>
 
                   <div className="version-list">
-                    {study.dataset_versions.map((version) => (
-                      <div className="version-row" key={version.id}>
-                        <div>
-                          <p className="version-label">{version.version_label}</p>
-                          <span className={`status status-${version.status.toLowerCase()}`}>
-                            {version.status.replaceAll("_", " ")}
-                          </span>
+                    {study.dataset_versions.map((version) => {
+                      const altState = altAnalyses[version.id];
+                      return (
+                        <div className="version-block" key={version.id}>
+                          <div className="version-row">
+                            <div>
+                              <p className="version-label">{version.version_label}</p>
+                              <span className={`status status-${version.status.toLowerCase()}`}>
+                                {version.status.replaceAll("_", " ")}
+                              </span>
+                            </div>
+                            <div className="version-actions">
+                              <div className="subject-total">
+                                <strong>{version.subject_count.toLocaleString()}</strong>
+                                <span>normalized subjects</span>
+                              </div>
+                              <button
+                                className="analysis-button"
+                                type="button"
+                                disabled={altState?.status === "loading"}
+                                onClick={() => runAltAnalysis(version.id)}
+                              >
+                                {altState?.status === "loading" ? "Running check..." : "Run ALT check"}
+                              </button>
+                            </div>
+                          </div>
+
+                          {altState?.status === "error" && (
+                            <div className="inline-error" role="alert">
+                              The ALT result could not be loaded. Confirm that FastAPI and PostgreSQL
+                              are running, then try again.
+                            </div>
+                          )}
+
+                          {altState?.status === "loaded" && (
+                            <section className="analysis-result" aria-label="ALT threshold result">
+                              <div className="analysis-result-heading">
+                                <div>
+                                  <p className="card-label">Deterministic result</p>
+                                  <h3>ALT greater than 3x upper limit</h3>
+                                </div>
+                                <span className="method-version">
+                                  {altState.response.method_version}
+                                </span>
+                              </div>
+
+                              <div className="metric-grid">
+                                <div>
+                                  <strong>{altState.response.eligible_row_count}</strong>
+                                  <span>eligible measurements</span>
+                                </div>
+                                <div>
+                                  <strong>{altState.response.qualifying_measurement_count}</strong>
+                                  <span>qualifying measurements</span>
+                                </div>
+                                <div>
+                                  <strong>
+                                    {altState.response.subjects_with_qualifying_measurement}
+                                  </strong>
+                                  <span>subjects represented</span>
+                                </div>
+                              </div>
+
+                              <p className="timing-note">{altState.response.timing_limitation}</p>
+
+                              {altState.response.findings.length > 0 && (
+                                <div className="validation-findings">
+                                  <strong>
+                                    {altState.response.excluded_row_count} measurement
+                                    {altState.response.excluded_row_count === 1 ? "" : "s"} excluded
+                                  </strong>
+                                  <ul>
+                                    {altState.response.findings.map((finding) => (
+                                      <li
+                                        key={`${finding.rule_code}-${finding.source_record_number ?? "all"}`}
+                                      >
+                                        {finding.message}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              <details className="evidence-panel">
+                                <summary>
+                                  View source evidence ({altState.response.exceedances.length})
+                                </summary>
+                                {altState.response.exceedances.length === 0 ? (
+                                  <p>No measurements exceeded the threshold.</p>
+                                ) : (
+                                  <div className="table-scroll">
+                                    <table>
+                                      <thead>
+                                        <tr>
+                                          <th>Source row</th>
+                                          <th>Subject</th>
+                                          <th>ALT result</th>
+                                          <th>Upper limit</th>
+                                          <th>Threshold</th>
+                                          <th>Timing</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {altState.response.exceedances.map((item) => (
+                                          <tr key={item.source_record_number}>
+                                            <td>{item.source_record_number}</td>
+                                            <td>{item.unique_subject_id}</td>
+                                            <td>{item.standard_result}</td>
+                                            <td>{item.upper_reference_limit}</td>
+                                            <td>{item.threshold}</td>
+                                            <td>{item.timing.replaceAll("_", " ")}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </details>
+                            </section>
+                          )}
                         </div>
-                        <div className="subject-total">
-                          <strong>{version.subject_count.toLocaleString()}</strong>
-                          <span>normalized subjects</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </article>
               ))}

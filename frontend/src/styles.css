@@ -171,6 +171,10 @@ h1 {
   border-radius: 12px;
 }
 
+.version-block + .version-block {
+  border-top: 1px solid #e7ebe7;
+}
+
 .version-row:hover {
   background: #f5f7f3;
 }
@@ -206,6 +210,143 @@ h1 {
   display: grid;
   min-width: 150px;
   text-align: right;
+}
+
+.version-actions {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.analysis-button {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 14px;
+  color: #effaf5;
+  background: #17614e;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.analysis-button:hover:not(:disabled) {
+  background: #104c3c;
+}
+
+.analysis-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.inline-error,
+.analysis-result {
+  margin: 0 12px 18px;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.inline-error {
+  border: 1px solid #e4bdb8;
+  color: #7a3831;
+  background: #fff8f7;
+}
+
+.analysis-result {
+  border: 1px solid #cfe0d8;
+  background: #f6faf7;
+}
+
+.analysis-result-heading {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.analysis-result h3 {
+  margin: 0;
+  color: #173b31;
+  font-family: "Manrope", sans-serif;
+  font-size: 1rem;
+}
+
+.method-version {
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: #52635e;
+  background: #e7eeea;
+  font-family: monospace;
+  font-size: 0.7rem;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.metric-grid div {
+  display: grid;
+  border-radius: 9px;
+  padding: 13px;
+  background: #fff;
+}
+
+.metric-grid strong {
+  color: #123d32;
+  font-family: "Manrope", sans-serif;
+  font-size: 1.35rem;
+}
+
+.metric-grid span,
+.timing-note,
+.evidence-panel {
+  color: #62716d;
+  font-size: 0.76rem;
+}
+
+.timing-note {
+  margin: 14px 0;
+  line-height: 1.5;
+}
+
+.validation-findings {
+  margin: 14px 0;
+  border-left: 3px solid #c78d2d;
+  padding: 10px 12px;
+  color: #674d21;
+  background: #fff9eb;
+  font-size: 0.78rem;
+}
+
+.validation-findings ul {
+  margin: 7px 0 0;
+  padding-left: 18px;
+}
+
+.evidence-panel summary {
+  color: #285c4e;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th,
+td {
+  border-bottom: 1px solid #dfe7e2;
+  padding: 9px;
+  white-space: nowrap;
 }
 
 .subject-total strong {
@@ -291,5 +432,14 @@ h1 {
 
   .subject-total {
     min-width: 105px;
+  }
+
+  .version-actions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
   }
 }
