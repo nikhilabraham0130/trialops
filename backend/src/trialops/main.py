@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from trialops.agent.model import PlanModel
+from trialops.api.routes.agent import router as agent_router
 from trialops.api.routes.analytics import router as analytics_router
 from trialops.api.routes.health import router as health_router
 from trialops.api.routes.studies import router as studies_router
@@ -24,7 +26,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             await database.dispose()
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, plan_model: PlanModel | None = None) -> FastAPI:
     """Create and configure a TrialOps API instance."""
     app_settings = settings or get_settings()
     database = create_database_resources(app_settings)
@@ -36,13 +38,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = app_settings
     application.state.database = database
+    application.state.plan_model = plan_model
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(app_settings.cors_origins),
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
+    application.include_router(agent_router)
     application.include_router(analytics_router)
     application.include_router(health_router)
     application.include_router(studies_router)

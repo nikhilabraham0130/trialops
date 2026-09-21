@@ -212,8 +212,25 @@ rejected without executing a tool.
 `FakePlanModel` implements that interface without network access or an API key.
 It records exactly what it received and returns configured JSON, making the
 planning workflow deterministic and free of API cost in tests. There is still
-no live LLM call and no tool execution; the next layers will expose plan
-creation through the API and add explicit confirmation before execution.
+no live LLM call and no tool execution; the next layer will add explicit
+confirmation before execution.
+
+The plan-creation boundary is available at:
+
+```text
+POST /agent/plans
+```
+
+The request contains a natural-language question and the dataset-version UUID
+selected by the application. FastAPI verifies that the version exists before
+calling the configured planning model. A valid response is a newly identified
+plan with status `AWAITING_CONFIRMATION`; it is not an executed calculation.
+Invalid model JSON returns `502`, model unavailability returns `503`, and an
+unknown dataset version returns `404`, all without leaking provider details.
+
+The default application intentionally has no model configured yet, so this
+endpoint returns `503` unless a fake or future live adapter is explicitly
+injected. This prevents a demo substitute from being mistaken for real AI.
 
 ## Configuration
 

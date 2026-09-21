@@ -1,7 +1,7 @@
 """Provider-neutral interface for models that propose analysis plans."""
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from trialops.agent.tools import ToolSpecification
 
@@ -18,6 +18,7 @@ class PlanModelError(RuntimeError):
     """Raised by a provider adapter when it cannot return a model response."""
 
 
+@runtime_checkable
 class PlanModel(Protocol):
     """Interface implemented by fake and future external model adapters."""
 

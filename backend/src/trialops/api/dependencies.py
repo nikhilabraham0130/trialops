@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trialops.agent.model import PlanModel
 from trialops.db.session import DatabaseResources
 
 
@@ -23,3 +24,17 @@ async def get_database_session(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 DatabaseSession = Annotated[AsyncSession, Depends(get_database_session)]
+
+
+def get_plan_model(request: Request) -> PlanModel:
+    """Return the configured model adapter without exposing provider details."""
+    model = getattr(request.app.state, "plan_model", None)
+    if not isinstance(model, PlanModel):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Planning model is unavailable.",
+        )
+    return model
+
+
+PlanningModel = Annotated[PlanModel, Depends(get_plan_model)]

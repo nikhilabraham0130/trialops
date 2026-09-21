@@ -46,6 +46,28 @@ def test_application_allows_configured_frontend_origin() -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_application_allows_frontend_to_post_plan_requests() -> None:
+    """CORS permits the browser's preflight for controlled plan creation."""
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def request_preflight() -> Response:
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.options(
+                "/agent/plans",
+                headers={
+                    "Origin": "http://localhost:5173",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+
+    response = asyncio.run(request_preflight())
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "POST" in response.headers["access-control-allow-methods"]
+
+
 def test_readiness_confirms_application_configuration() -> None:
     """The readiness endpoint confirms validated settings are available."""
     application = create_app(Settings(env=RuntimeEnvironment.TEST))
