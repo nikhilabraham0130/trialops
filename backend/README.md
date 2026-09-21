@@ -228,6 +228,12 @@ plan with status `AWAITING_CONFIRMATION`; it is not an executed calculation.
 Invalid model JSON returns `502`, model unavailability returns `503`, and an
 unknown dataset version returns `404`, all without leaking provider details.
 
+Before returning success, TrialOps stores the exact plan in PostgreSQL's
+`agent_plan` table. The stored record contains the question, purpose, selected
+dataset version, approved tool and arguments, status, and creation time. This
+server-controlled copy is what a later confirmation request will retrieve, so
+the browser cannot alter a tool or dataset between planning and execution.
+
 The default application intentionally has no model configured yet, so this
 endpoint returns `503` unless a fake or future live adapter is explicitly
 injected. This prevents a demo substitute from being mistaken for real AI.

@@ -8,10 +8,12 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trialops.agent.fake_model import FakePlanModel
 from trialops.agent.model import PlanModelError
+from trialops.agent.models import AgentPlanRecord
 from trialops.api.dependencies import get_database_session
 from trialops.api.routes.agent import router as agent_router
 from trialops.core.config import RuntimeEnvironment, Settings
@@ -24,13 +26,30 @@ VALID_RESPONSE = (
 
 
 class _FakeSession:
-    def __init__(self, version_id: UUID | None) -> None:
+    def __init__(
+        self, version_id: UUID | None, *, commit_error: IntegrityError | None = None
+    ) -> None:
         self.version_id = version_id
+        self.commit_error = commit_error
         self.scalar_calls = 0
+        self.commit_calls = 0
+        self.rollback_calls = 0
+        self.added: object | None = None
 
     async def scalar(self, _statement: object) -> UUID | None:
         self.scalar_calls += 1
         return self.version_id
+
+    def add(self, instance: object) -> None:
+        self.added = instance
+
+    async def commit(self) -> None:
+        self.commit_calls += 1
+        if self.commit_error is not None:
+            raise self.commit_error
+
+    async def rollback(self) -> None:
+        self.rollback_calls += 1
 
 
 async def _post(application: FastAPI, body: dict[str, object]) -> Response:
@@ -74,6 +93,11 @@ def test_plan_endpoint_returns_confirmation_required_plan() -> None:
         "arguments": {"dataset_version_id": str(version_id)},
     }
     assert fake_session.scalar_calls == 1
+    assert fake_session.rollback_calls == 1
+    assert fake_session.commit_calls == 1
+    record = cast(AgentPlanRecord, fake_session.added)
+    assert str(record.id) == body["id"]
+    assert record.dataset_version_id == version_id
     assert len(model.requests) == 1
 
 
@@ -135,6 +159,24 @@ def test_plan_endpoint_rejects_blank_question() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "INVALID_QUESTION"
+
+
+def test_plan_endpoint_returns_conflict_when_plan_cannot_be_stored() -> None:
+    version_id = uuid4()
+    conflict = IntegrityError("insert", {}, Exception("duplicate plan id"))
+    fake_session = _FakeSession(version_id, commit_error=conflict)
+    application = create_app(
+        Settings(env=RuntimeEnvironment.TEST), plan_model=FakePlanModel(VALID_RESPONSE)
+    )
+    _override_session(application, fake_session)
+
+    response = asyncio.run(
+        _post(application, {"question": "Check ALT.", "dataset_version_id": str(version_id)})
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "DATABASE_CONFLICT"
+    assert fake_session.rollback_calls == 2
 
 
 def test_plan_endpoint_requires_configured_model() -> None:

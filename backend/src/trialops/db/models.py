@@ -1,5 +1,6 @@
 """Import every ORM model so Alembic receives complete table metadata."""
 
+from trialops.agent.models import AgentPlanRecord
 from trialops.datasets.models import (
     AEEvent,
     DatasetVersion,
@@ -13,6 +14,7 @@ from trialops.studies.models import Study
 
 __all__ = [
     "AEEvent",
+    "AgentPlanRecord",
     "Base",
     "DMSubject",
     "LBResult",

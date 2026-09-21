@@ -2,6 +2,7 @@
 
 from sqlalchemy import CheckConstraint, Enum, ForeignKeyConstraint, Numeric, UniqueConstraint
 
+from trialops.agent.contracts import ApprovedToolName, PlanStatus
 from trialops.datasets.adverse_events import AdverseEventSeverity
 from trialops.datasets.laboratory_results import NormalRangeIndicator
 from trialops.datasets.manifest import ArtifactKind
@@ -28,6 +29,7 @@ def test_metadata_registers_foundational_catalog_tables() -> None:
         "dm_subject",
         "ae_event",
         "lb_result",
+        "agent_plan",
     }
 
 
@@ -171,3 +173,25 @@ def test_lb_results_reference_dm_subjects_in_the_same_version() -> None:
             "baseline_flag",
         }
     )
+
+
+def test_agent_plans_are_versioned_and_restricted_to_approved_tools() -> None:
+    """Stored plans retain their snapshot and constrained workflow state."""
+    agent_plan = Base.metadata.tables["agent_plan"]
+    foreign_keys = _constraint_names("agent_plan", ForeignKeyConstraint)
+    check_constraints = _constraint_names("agent_plan", CheckConstraint)
+
+    assert "fk_agent_plan_dataset_version_id_dataset_version" in foreign_keys
+    assert "ck_agent_plan_nonempty_question" in check_constraints
+    assert "ck_agent_plan_nonempty_purpose" in check_constraints
+    assert agent_plan.c.dataset_version_id.foreign_keys.pop().target_fullname == (
+        "dataset_version.id"
+    )
+
+    status_type = agent_plan.c.status.type
+    tool_type = agent_plan.c.tool_name.type
+    assert isinstance(status_type, Enum)
+    assert status_type.enums == [status.value for status in PlanStatus]
+    assert isinstance(tool_type, Enum)
+    assert tool_type.enums == [name.value for name in ApprovedToolName]
+    assert all(not column.nullable for column in agent_plan.columns)

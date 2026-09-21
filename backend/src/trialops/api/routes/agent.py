@@ -13,6 +13,7 @@ from trialops.agent.orchestrator import (
     AgentPlanningErrorCode,
     propose_analysis_plan,
 )
+from trialops.agent.storage import AgentPlanStorageError, store_analysis_plan
 from trialops.api.dependencies import DatabaseSession, PlanningModel
 from trialops.datasets.models import DatasetVersion
 
@@ -46,6 +47,7 @@ def _planning_http_error(error: AgentPlanningError) -> HTTPException:
     summary="Propose a confirmation-required analysis plan",
     responses={
         status.HTTP_404_NOT_FOUND: {"description": "Dataset version not found"},
+        status.HTTP_409_CONFLICT: {"description": "Plan could not be stored"},
         status.HTTP_502_BAD_GATEWAY: {"description": "Invalid model response"},
         status.HTTP_503_SERVICE_UNAVAILABLE: {"description": "Planning model unavailable"},
     },
@@ -59,6 +61,7 @@ async def create_plan(
     version_id = await session.scalar(
         select(DatasetVersion.id).where(DatasetVersion.id == request.dataset_version_id)
     )
+    await session.rollback()
     if version_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -69,10 +72,19 @@ async def create_plan(
         )
 
     try:
-        return await propose_analysis_plan(
+        plan = await propose_analysis_plan(
             model,
             question=request.question,
             dataset_version_id=request.dataset_version_id,
         )
     except AgentPlanningError as exc:
         raise _planning_http_error(exc) from exc
+
+    try:
+        await store_analysis_plan(session, plan)
+    except AgentPlanStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
+    return plan

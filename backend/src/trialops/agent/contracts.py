@@ -16,9 +16,12 @@ class ApprovedToolName(StrEnum):
 
 
 class PlanStatus(StrEnum):
-    """Lifecycle state of an analysis plan before tool execution exists."""
+    """Controlled lifecycle states for a proposed tool call."""
 
     AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
+    EXECUTING = "EXECUTING"
+    EXECUTED = "EXECUTED"
+    FAILED = "FAILED"
 
 
 class ModelPlanProposal(BaseModel):
