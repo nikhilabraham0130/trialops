@@ -1,13 +1,18 @@
 """Endpoints for governed AI planning without automatic tool execution."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from trialops.agent.contracts import AnalysisPlan
+from trialops.agent.contracts import AnalysisExecution, AnalysisPlan
+from trialops.agent.execution import (
+    AgentExecutionError,
+    AgentExecutionErrorCode,
+    execute_confirmed_plan,
+)
 from trialops.agent.orchestrator import (
     AgentPlanningError,
     AgentPlanningErrorCode,
@@ -25,6 +30,12 @@ class PlanCreationRequest(BaseModel):
 
     question: Annotated[str, Field(min_length=1, max_length=2000)]
     dataset_version_id: UUID
+
+
+class PlanConfirmationRequest(BaseModel):
+    """An explicit decision to run the already stored plan."""
+
+    confirmed: Literal[True]
 
 
 def _planning_http_error(error: AgentPlanningError) -> HTTPException:
@@ -88,3 +99,32 @@ async def create_plan(
             detail={"code": exc.code.value, "message": str(exc)},
         ) from exc
     return plan
+
+
+@router.post(
+    "/plans/{plan_id}/confirm",
+    response_model=AnalysisExecution,
+    summary="Confirm and execute a stored analysis plan",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan not found"},
+        status.HTTP_409_CONFLICT: {"description": "Plan cannot be safely executed"},
+    },
+)
+async def confirm_plan(
+    plan_id: UUID,
+    _request: PlanConfirmationRequest,
+    session: DatabaseSession,
+) -> AnalysisExecution:
+    """Execute only the locked, server-controlled plan identified by its ID."""
+    try:
+        return await execute_confirmed_plan(session, plan_id)
+    except AgentExecutionError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if exc.code is AgentExecutionErrorCode.PLAN_NOT_FOUND
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc

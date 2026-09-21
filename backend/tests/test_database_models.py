@@ -194,4 +194,5 @@ def test_agent_plans_are_versioned_and_restricted_to_approved_tools() -> None:
     assert status_type.enums == [status.value for status in PlanStatus]
     assert isinstance(tool_type, Enum)
     assert tool_type.enums == [name.value for name in ApprovedToolName]
-    assert all(not column.nullable for column in agent_plan.columns)
+    nullable_columns = {column.name for column in agent_plan.columns if column.nullable}
+    assert nullable_columns == {"result", "executed_at"}

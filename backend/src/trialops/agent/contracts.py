@@ -6,6 +6,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from trialops.analytics.contracts import AltAbnormalityResponse
+
 NonEmptyText = Annotated[str, Field(min_length=1)]
 
 
@@ -70,6 +72,17 @@ class AnalysisPlan(BaseModel):
     status: Literal[PlanStatus.AWAITING_CONFIRMATION]
     confirmation_required: Literal[True]
     tool_call: ApprovedToolCall
+
+
+class AnalysisExecution(BaseModel):
+    """Persisted deterministic result returned after explicit confirmation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    plan_id: UUID
+    status: Literal[PlanStatus.EXECUTED]
+    tool_name: Literal[ApprovedToolName.CALCULATE_ALT_GT_3X_ULN]
+    result: AltAbnormalityResponse
 
 
 def create_analysis_plan(

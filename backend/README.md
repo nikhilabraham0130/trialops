@@ -212,8 +212,7 @@ rejected without executing a tool.
 `FakePlanModel` implements that interface without network access or an API key.
 It records exactly what it received and returns configured JSON, making the
 planning workflow deterministic and free of API cost in tests. There is still
-no live LLM call and no tool execution; the next layer will add explicit
-confirmation before execution.
+no live LLM call. Tool execution is a separate, explicit confirmation step.
 
 The plan-creation boundary is available at:
 
@@ -233,6 +232,23 @@ Before returning success, TrialOps stores the exact plan in PostgreSQL's
 dataset version, approved tool and arguments, status, and creation time. This
 server-controlled copy is what a later confirmation request will retrieve, so
 the browser cannot alter a tool or dataset between planning and execution.
+
+An explicit confirmation is available at:
+
+```text
+POST /agent/plans/{plan_id}/confirm
+```
+
+The request body must be `{ "confirmed": true }`; it does not repeat the tool,
+dataset version, or arguments. TrialOps locks and retrieves the stored plan,
+requires status `AWAITING_CONFIRMATION`, validates its trusted arguments, and
+runs the approved deterministic ALT calculation. The structured result and
+execution time are stored on the plan before the endpoint returns `EXECUTED`.
+
+The row lock prevents two simultaneous confirmation requests from executing
+the same plan twice. Missing plans return `404`; completed, malformed, or
+otherwise non-confirmable plans return `409`. Confirmation does not call the
+language model because the model's planning work has already finished.
 
 The default application intentionally has no model configured yet, so this
 endpoint returns `503` unless a fake or future live adapter is explicitly

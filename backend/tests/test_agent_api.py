@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -11,9 +12,12 @@ from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trialops.agent.contracts import AnalysisExecution, ApprovedToolName, PlanStatus
+from trialops.agent.execution import AgentExecutionError, AgentExecutionErrorCode
 from trialops.agent.fake_model import FakePlanModel
 from trialops.agent.model import PlanModelError
 from trialops.agent.models import AgentPlanRecord
+from trialops.analytics.contracts import AltAbnormalityResponse
 from trialops.api.dependencies import get_database_session
 from trialops.api.routes.agent import router as agent_router
 from trialops.core.config import RuntimeEnvironment, Settings
@@ -58,11 +62,41 @@ async def _post(application: FastAPI, body: dict[str, object]) -> Response:
         return await client.post("/agent/plans", json=body)
 
 
+async def _confirm(application: FastAPI, plan_id: UUID, confirmed: bool = True) -> Response:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.post(
+            f"/agent/plans/{plan_id}/confirm",
+            json={"confirmed": confirmed},
+        )
+
+
 def _override_session(application: FastAPI, fake: _FakeSession) -> None:
     async def session_override() -> AsyncIterator[AsyncSession]:
         yield cast(AsyncSession, fake)
 
     application.dependency_overrides[get_database_session] = session_override
+
+
+def _execution(plan_id: UUID, dataset_version_id: UUID) -> AnalysisExecution:
+    return AnalysisExecution(
+        plan_id=plan_id,
+        status=PlanStatus.EXECUTED,
+        tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+        result=AltAbnormalityResponse(
+            dataset_version_id=dataset_version_id,
+            method_version="alt-gt-3x-uln/1.0",
+            threshold_multiplier=Decimal(3),
+            alt_row_count=1,
+            eligible_row_count=1,
+            excluded_row_count=0,
+            qualifying_measurement_count=0,
+            subjects_with_qualifying_measurement=0,
+            exceedances=(),
+            findings=(),
+            timing_limitation="A blank baseline flag does not prove post-treatment timing.",
+        ),
+    )
 
 
 def test_plan_endpoint_returns_confirmation_required_plan() -> None:
@@ -191,3 +225,66 @@ def test_plan_endpoint_requires_configured_model() -> None:
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Planning model is unavailable."}
+
+
+def test_confirmation_endpoint_executes_stored_plan_without_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan_id = uuid4()
+    version_id = uuid4()
+    fake_session = _FakeSession(None)
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, fake_session)
+
+    async def execute(session: AsyncSession, requested_plan_id: UUID) -> AnalysisExecution:
+        assert session is cast(AsyncSession, fake_session)
+        assert requested_plan_id == plan_id
+        return _execution(plan_id, version_id)
+
+    monkeypatch.setattr("trialops.api.routes.agent.execute_confirmed_plan", execute)
+
+    response = asyncio.run(_confirm(application, plan_id))
+
+    assert response.status_code == 200
+    assert response.json()["plan_id"] == str(plan_id)
+    assert response.json()["status"] == "EXECUTED"
+    assert response.json()["result"]["dataset_version_id"] == str(version_id)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_status"),
+    [
+        (AgentExecutionErrorCode.PLAN_NOT_FOUND, 404),
+        (AgentExecutionErrorCode.PLAN_NOT_CONFIRMABLE, 409),
+    ],
+)
+def test_confirmation_endpoint_maps_safe_execution_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    code: AgentExecutionErrorCode,
+    expected_status: int,
+) -> None:
+    plan_id = uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+
+    async def reject(_session: AsyncSession, _plan_id: UUID) -> AnalysisExecution:
+        raise AgentExecutionError(code, "Safe explanation.")
+
+    monkeypatch.setattr("trialops.api.routes.agent.execute_confirmed_plan", reject)
+
+    response = asyncio.run(_confirm(application, plan_id))
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"] == {
+        "code": code.value,
+        "message": "Safe explanation.",
+    }
+
+
+def test_confirmation_endpoint_requires_explicit_true_decision() -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+
+    response = asyncio.run(_confirm(application, uuid4(), confirmed=False))
+
+    assert response.status_code == 422
