@@ -1,4 +1,4 @@
-"""Endpoints for governed AI planning without automatic tool execution."""
+"""Endpoints for governed AI planning and confirmation-gated execution."""
 
 from typing import Annotated, Literal
 from uuid import UUID
@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from trialops.agent.contracts import AnalysisExecution, AnalysisPlan
+from trialops.agent.contracts import AnalysisExecution, AnalysisPlan, AnalysisPlanDetails
 from trialops.agent.execution import (
     AgentExecutionError,
     AgentExecutionErrorCode,
@@ -17,6 +17,11 @@ from trialops.agent.orchestrator import (
     AgentPlanningError,
     AgentPlanningErrorCode,
     propose_analysis_plan,
+)
+from trialops.agent.queries import (
+    AgentPlanQueryError,
+    AgentPlanQueryErrorCode,
+    get_analysis_plan,
 )
 from trialops.agent.storage import AgentPlanStorageError, store_analysis_plan
 from trialops.api.dependencies import DatabaseSession, PlanningModel
@@ -99,6 +104,31 @@ async def create_plan(
             detail={"code": exc.code.value, "message": str(exc)},
         ) from exc
     return plan
+
+
+@router.get(
+    "/plans/{plan_id}",
+    response_model=AnalysisPlanDetails,
+    summary="Retrieve a stored analysis plan",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan not found"},
+        status.HTTP_409_CONFLICT: {"description": "Stored plan is inconsistent"},
+    },
+)
+async def read_plan(plan_id: UUID, session: DatabaseSession) -> AnalysisPlanDetails:
+    """Return validated plan state from PostgreSQL without rerunning its tool."""
+    try:
+        return await get_analysis_plan(session, plan_id)
+    except AgentPlanQueryError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if exc.code is AgentPlanQueryErrorCode.PLAN_NOT_FOUND
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
 
 
 @router.post(

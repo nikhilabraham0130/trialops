@@ -250,9 +250,23 @@ the same plan twice. Missing plans return `404`; completed, malformed, or
 otherwise non-confirmable plans return `409`. Confirmation does not call the
 language model because the model's planning work has already finished.
 
-The default application intentionally has no model configured yet, so this
-endpoint returns `503` unless a fake or future live adapter is explicitly
-injected. This prevents a demo substitute from being mistaken for real AI.
+Saved plan state is available at:
+
+```text
+GET /agent/plans/{plan_id}
+```
+
+This endpoint loads the authoritative PostgreSQL record without rerunning the
+tool or calling the language model. It returns the original question, selected
+dataset version, purpose, approved tool call, current status, timestamps, and
+the structured deterministic result when execution has completed. Before
+returning the record, TrialOps revalidates the stored arguments and result and
+rejects inconsistent state with `409`; an unknown plan ID returns `404`.
+
+The default application intentionally has no model configured yet, so the
+plan-creation endpoint returns `503` unless a fake or future live adapter is
+explicitly injected. This prevents a demo substitute from being mistaken for
+real AI. Retrieval and confirmation do not require a planning model.
 
 ## Configuration
 

@@ -1,5 +1,6 @@
 """Typed contracts between a language model and trusted application code."""
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
@@ -83,6 +84,31 @@ class AnalysisExecution(BaseModel):
     status: Literal[PlanStatus.EXECUTED]
     tool_name: Literal[ApprovedToolName.CALCULATE_ALT_GT_3X_ULN]
     result: AltAbnormalityResponse
+
+
+class AnalysisPlanDetails(BaseModel):
+    """Complete server-controlled state returned when a saved plan is loaded."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    question: NonEmptyText
+    dataset_version_id: UUID
+    purpose: NonEmptyText
+    status: PlanStatus
+    confirmation_required: bool
+    tool_call: ApprovedToolCall
+    result: AltAbnormalityResponse | None
+    created_at: datetime
+    executed_at: datetime | None
+
+    @field_validator("question", "purpose")
+    @classmethod
+    def reject_blank_text(cls, value: str) -> str:
+        """Require visible text when rebuilding persisted plan details."""
+        if not value.strip():
+            raise ValueError("stored plan text must contain visible text")
+        return value
 
 
 def create_analysis_plan(
