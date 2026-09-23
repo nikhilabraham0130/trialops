@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.analytics.contracts import AltAbnormalityResponse
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
@@ -99,6 +100,7 @@ class AnalysisPlanDetails(BaseModel):
     confirmation_required: bool
     tool_call: ApprovedToolCall
     result: AltAbnormalityResponse | None
+    interpretation: StoredInterpretation | None
     created_at: datetime
     executed_at: datetime | None
 

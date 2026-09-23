@@ -1,5 +1,6 @@
 """Typed contracts for numerically grounded AI interpretations."""
 
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -80,3 +81,9 @@ class VerifiedInterpretation(BaseModel):
     grounding_status: Literal[GroundingStatus.NUMERICALLY_VERIFIED]
     prompt_version: str
     model_id: str
+
+
+class StoredInterpretation(VerifiedInterpretation):
+    """Verified explanation plus the time TrialOps persisted it."""
+
+    generated_at: datetime

@@ -19,6 +19,10 @@ class AgentPlanRecord(Base):
     __table_args__ = (
         CheckConstraint("btrim(question) <> ''", name="nonempty_question"),
         CheckConstraint("btrim(purpose) <> ''", name="nonempty_purpose"),
+        CheckConstraint(
+            "interpretation IS NULL OR jsonb_typeof(interpretation) = 'object'",
+            name="interpretation_is_object",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -50,6 +54,7 @@ class AgentPlanRecord(Base):
     )
     tool_arguments: Mapped[dict[str, Any]] = mapped_column(JSONB)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    interpretation: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trialops.agent.contracts import ApprovedToolName, PlanStatus
+from trialops.agent.interpretation_contracts import GroundingStatus, StoredInterpretation
 from trialops.agent.models import AgentPlanRecord
 from trialops.agent.queries import (
     AgentPlanQueryError,
@@ -57,11 +58,23 @@ def _record(status: PlanStatus = PlanStatus.AWAITING_CONFIRMATION) -> AgentPlanR
         tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
         tool_arguments={"dataset_version_id": str(dataset_version_id)},
         result=_result(dataset_version_id) if status is PlanStatus.EXECUTED else None,
+        interpretation=None,
         created_at=datetime(2026, 9, 22, 12, tzinfo=UTC),
         executed_at=(
             datetime(2026, 9, 22, 12, 1, tzinfo=UTC) if status is PlanStatus.EXECUTED else None
         ),
     )
+
+
+def _interpretation() -> dict[str, object]:
+    return StoredInterpretation(
+        summary="The calculation completed without citing a number.",
+        numeric_claims=(),
+        grounding_status=GroundingStatus.NUMERICALLY_VERIFIED,
+        prompt_version="alt-result-interpretation/1.0",
+        model_id="fake-model-v1",
+        generated_at=datetime(2026, 9, 23, 12, tzinfo=UTC),
+    ).model_dump(mode="json")
 
 
 @pytest.mark.parametrize(
@@ -173,3 +186,35 @@ def test_query_rejects_invalid_core_plan_fields() -> None:
 
     assert raised.value.code is AgentPlanQueryErrorCode.INVALID_STORED_PLAN
     assert raised.value.__cause__ is not None
+
+
+def test_query_returns_verified_interpretation_for_executed_plan() -> None:
+    record = _record(PlanStatus.EXECUTED)
+    record.interpretation = _interpretation()
+
+    details = asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+
+    assert details.interpretation is not None
+    assert details.interpretation.model_id == "fake-model-v1"
+    assert details.interpretation.grounding_status is GroundingStatus.NUMERICALLY_VERIFIED
+
+
+def test_query_rejects_invalid_interpretation_structure() -> None:
+    record = _record(PlanStatus.EXECUTED)
+    record.interpretation = {"invalid": "shape"}
+
+    with pytest.raises(AgentPlanQueryError) as raised:
+        asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+
+    assert raised.value.code is AgentPlanQueryErrorCode.INVALID_STORED_PLAN
+    assert raised.value.__cause__ is not None
+
+
+def test_query_rejects_interpretation_on_unexecuted_plan() -> None:
+    record = _record()
+    record.interpretation = _interpretation()
+
+    with pytest.raises(AgentPlanQueryError) as raised:
+        asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+
+    assert raised.value.code is AgentPlanQueryErrorCode.INVALID_STORED_PLAN

@@ -287,8 +287,25 @@ An accepted explanation is labeled `NUMERICALLY_VERIFIED` and records the
 prompt version and model identifier for future lineage. This status establishes
 numeric support only; it does not claim that every sentence has received
 clinical or statistical review. `FakeInterpretationModel` exercises the same
-contract without network access or an API key. Persistence and an HTTP endpoint
-for verified interpretations are the next integration step.
+contract without network access or an API key.
+
+Verified interpretation creation is available at:
+
+```text
+POST /agent/plans/{plan_id}/interpretation
+```
+
+The plan must already be `EXECUTED` and may have only one interpretation. The
+workflow reads and validates the plan, ends its database transaction before the
+model call, verifies the returned JSON, then re-locks and compares the plan with
+the original snapshot. Only an unchanged plan receives the stored explanation.
+The complete interpretation is retained as JSON and is returned by
+`GET /agent/plans/{plan_id}` on later reads.
+
+The default application has no interpretation model configured, so this
+endpoint returns `503` unless a fake or future live adapter is explicitly
+injected. Invalid or numerically unsupported model output returns `502` and is
+not saved. An ineligible, changed, or already interpreted plan returns `409`.
 
 ## Configuration
 

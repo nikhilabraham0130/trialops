@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from trialops.agent.interpretation_model import InterpretationModel
 from trialops.agent.model import PlanModel
 from trialops.api.routes.agent import router as agent_router
 from trialops.api.routes.analytics import router as analytics_router
@@ -26,7 +27,12 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             await database.dispose()
 
 
-def create_app(settings: Settings | None = None, *, plan_model: PlanModel | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    plan_model: PlanModel | None = None,
+    interpretation_model: InterpretationModel | None = None,
+) -> FastAPI:
     """Create and configure a TrialOps API instance."""
     app_settings = settings or get_settings()
     database = create_database_resources(app_settings)
@@ -39,6 +45,7 @@ def create_app(settings: Settings | None = None, *, plan_model: PlanModel | None
     application.state.settings = app_settings
     application.state.database = database
     application.state.plan_model = plan_model
+    application.state.interpretation_model = interpretation_model
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(app_settings.cors_origins),

@@ -22,7 +22,14 @@ from trialops.agent.contracts import (
     PlanStatus,
 )
 from trialops.agent.execution import AgentExecutionError, AgentExecutionErrorCode
+from trialops.agent.fake_interpretation_model import FakeInterpretationModel
 from trialops.agent.fake_model import FakePlanModel
+from trialops.agent.interpretation_contracts import GroundingStatus, StoredInterpretation
+from trialops.agent.interpretation_model import InterpretationModel
+from trialops.agent.interpretation_workflow import (
+    InterpretationWorkflowError,
+    InterpretationWorkflowErrorCode,
+)
 from trialops.agent.model import PlanModelError
 from trialops.agent.models import AgentPlanRecord
 from trialops.agent.queries import AgentPlanQueryError, AgentPlanQueryErrorCode
@@ -86,6 +93,12 @@ async def _get_plan(application: FastAPI, plan_id: UUID) -> Response:
         return await client.get(f"/agent/plans/{plan_id}")
 
 
+async def _interpret(application: FastAPI, plan_id: UUID) -> Response:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.post(f"/agent/plans/{plan_id}/interpretation")
+
+
 def _override_session(application: FastAPI, fake: _FakeSession) -> None:
     async def session_override() -> AsyncIterator[AsyncSession]:
         yield cast(AsyncSession, fake)
@@ -127,8 +140,20 @@ def _details(plan_id: UUID, dataset_version_id: UUID) -> AnalysisPlanDetails:
             arguments=AltThresholdToolInput(dataset_version_id=dataset_version_id),
         ),
         result=None,
+        interpretation=None,
         created_at=datetime(2026, 9, 22, 12, tzinfo=UTC),
         executed_at=None,
+    )
+
+
+def _stored_interpretation() -> StoredInterpretation:
+    return StoredInterpretation(
+        summary="The deterministic calculation completed.",
+        numeric_claims=(),
+        grounding_status=GroundingStatus.NUMERICALLY_VERIFIED,
+        prompt_version="alt-result-interpretation/1.0",
+        model_id="fake-model-v1",
+        generated_at=datetime(2026, 9, 23, 12, tzinfo=UTC),
     )
 
 
@@ -376,3 +401,90 @@ def test_retrieval_endpoint_maps_safe_query_errors(
         "code": code.value,
         "message": "Safe explanation.",
     }
+
+
+def test_interpretation_endpoint_stores_verified_explanation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan_id = uuid4()
+    fake_session = _FakeSession(None)
+    model = FakeInterpretationModel('{"summary":"The calculation completed.","numeric_claims":[]}')
+    application = create_app(
+        Settings(env=RuntimeEnvironment.TEST),
+        interpretation_model=model,
+    )
+    _override_session(application, fake_session)
+
+    async def create(
+        session: AsyncSession,
+        provider: InterpretationModel,
+        requested_plan_id: UUID,
+    ) -> StoredInterpretation:
+        assert session is cast(AsyncSession, fake_session)
+        assert provider is cast(InterpretationModel, model)
+        assert requested_plan_id == plan_id
+        return _stored_interpretation()
+
+    monkeypatch.setattr(
+        "trialops.api.routes.agent.create_verified_plan_interpretation",
+        create,
+    )
+
+    response = asyncio.run(_interpret(application, plan_id))
+
+    assert response.status_code == 201
+    assert response.json()["grounding_status"] == "NUMERICALLY_VERIFIED"
+    assert response.json()["model_id"] == "fake-model-v1"
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_status"),
+    [
+        (InterpretationWorkflowErrorCode.PLAN_NOT_FOUND, 404),
+        (InterpretationWorkflowErrorCode.MODEL_UNAVAILABLE, 503),
+        (InterpretationWorkflowErrorCode.INVALID_MODEL_RESPONSE, 502),
+        (InterpretationWorkflowErrorCode.PLAN_NOT_EXECUTED, 409),
+    ],
+)
+def test_interpretation_endpoint_maps_safe_workflow_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    code: InterpretationWorkflowErrorCode,
+    expected_status: int,
+) -> None:
+    plan_id = uuid4()
+    model = FakeInterpretationModel('{"summary":"The calculation completed.","numeric_claims":[]}')
+    application = create_app(
+        Settings(env=RuntimeEnvironment.TEST),
+        interpretation_model=model,
+    )
+    _override_session(application, _FakeSession(None))
+
+    async def reject(
+        _session: AsyncSession,
+        _provider: InterpretationModel,
+        _plan_id: UUID,
+    ) -> StoredInterpretation:
+        raise InterpretationWorkflowError(code, "Safe explanation.")
+
+    monkeypatch.setattr(
+        "trialops.api.routes.agent.create_verified_plan_interpretation",
+        reject,
+    )
+
+    response = asyncio.run(_interpret(application, plan_id))
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"] == {
+        "code": code.value,
+        "message": "Safe explanation.",
+    }
+
+
+def test_interpretation_endpoint_requires_configured_model() -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+
+    response = asyncio.run(_interpret(application, uuid4()))
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Interpretation model is unavailable."}

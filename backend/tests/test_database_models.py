@@ -184,6 +184,7 @@ def test_agent_plans_are_versioned_and_restricted_to_approved_tools() -> None:
     assert "fk_agent_plan_dataset_version_id_dataset_version" in foreign_keys
     assert "ck_agent_plan_nonempty_question" in check_constraints
     assert "ck_agent_plan_nonempty_purpose" in check_constraints
+    assert "ck_agent_plan_interpretation_is_object" in check_constraints
     assert agent_plan.c.dataset_version_id.foreign_keys.pop().target_fullname == (
         "dataset_version.id"
     )
@@ -195,4 +196,4 @@ def test_agent_plans_are_versioned_and_restricted_to_approved_tools() -> None:
     assert isinstance(tool_type, Enum)
     assert tool_type.enums == [name.value for name in ApprovedToolName]
     nullable_columns = {column.name for column in agent_plan.columns if column.nullable}
-    assert nullable_columns == {"result", "executed_at"}
+    assert nullable_columns == {"result", "interpretation", "executed_at"}

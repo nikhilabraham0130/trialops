@@ -13,6 +13,12 @@ from trialops.agent.execution import (
     AgentExecutionErrorCode,
     execute_confirmed_plan,
 )
+from trialops.agent.interpretation_contracts import StoredInterpretation
+from trialops.agent.interpretation_workflow import (
+    InterpretationWorkflowError,
+    InterpretationWorkflowErrorCode,
+    create_verified_plan_interpretation,
+)
 from trialops.agent.orchestrator import (
     AgentPlanningError,
     AgentPlanningErrorCode,
@@ -24,7 +30,7 @@ from trialops.agent.queries import (
     get_analysis_plan,
 )
 from trialops.agent.storage import AgentPlanStorageError, store_analysis_plan
-from trialops.api.dependencies import DatabaseSession, PlanningModel
+from trialops.api.dependencies import DatabaseSession, InterpretationProvider, PlanningModel
 from trialops.datasets.models import DatasetVersion
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -154,6 +160,44 @@ async def confirm_plan(
             if exc.code is AgentExecutionErrorCode.PLAN_NOT_FOUND
             else status.HTTP_409_CONFLICT
         )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
+
+
+@router.post(
+    "/plans/{plan_id}/interpretation",
+    response_model=StoredInterpretation,
+    status_code=status.HTTP_201_CREATED,
+    summary="Generate and store a numerically verified interpretation",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan not found"},
+        status.HTTP_409_CONFLICT: {"description": "Plan cannot be interpreted"},
+        status.HTTP_502_BAD_GATEWAY: {"description": "Model output failed verification"},
+        status.HTTP_503_SERVICE_UNAVAILABLE: {"description": "Model unavailable"},
+    },
+)
+async def create_interpretation(
+    plan_id: UUID,
+    session: DatabaseSession,
+    model: InterpretationProvider,
+) -> StoredInterpretation:
+    """Store model prose only after deterministic numeric grounding succeeds."""
+    try:
+        return await create_verified_plan_interpretation(session, model, plan_id)
+    except InterpretationWorkflowError as exc:
+        if exc.code is InterpretationWorkflowErrorCode.PLAN_NOT_FOUND:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif exc.code is InterpretationWorkflowErrorCode.MODEL_UNAVAILABLE:
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        elif exc.code in {
+            InterpretationWorkflowErrorCode.INVALID_MODEL_RESPONSE,
+            InterpretationWorkflowErrorCode.UNGROUNDED_NUMERIC_CLAIM,
+        }:
+            status_code = status.HTTP_502_BAD_GATEWAY
+        else:
+            status_code = status.HTTP_409_CONFLICT
         raise HTTPException(
             status_code=status_code,
             detail={"code": exc.code.value, "message": str(exc)},

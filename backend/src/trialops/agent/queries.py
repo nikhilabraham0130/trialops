@@ -15,6 +15,7 @@ from trialops.agent.contracts import (
     ApprovedToolName,
     PlanStatus,
 )
+from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import AltAbnormalityResponse
 
@@ -39,15 +40,8 @@ def _invalid_stored_plan(message: str) -> Never:
     raise AgentPlanQueryError(AgentPlanQueryErrorCode.INVALID_STORED_PLAN, message)
 
 
-async def get_analysis_plan(session: AsyncSession, plan_id: UUID) -> AnalysisPlanDetails:
-    """Load and validate one server-controlled plan and its optional result."""
-    record = await session.scalar(select(AgentPlanRecord).where(AgentPlanRecord.id == plan_id))
-    if record is None:
-        raise AgentPlanQueryError(
-            AgentPlanQueryErrorCode.PLAN_NOT_FOUND,
-            "The requested analysis plan does not exist.",
-        )
-
+def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetails:
+    """Rebuild one ORM record only when all stored fields agree."""
     try:
         arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
     except ValidationError as exc:
@@ -86,6 +80,21 @@ async def get_analysis_plan(session: AsyncSession, plan_id: UUID) -> AnalysisPla
         _invalid_stored_plan("The unexecuted plan unexpectedly contains execution output.")
 
     try:
+        interpretation = (
+            StoredInterpretation.model_validate(record.interpretation)
+            if record.interpretation is not None
+            else None
+        )
+    except ValidationError as exc:
+        raise AgentPlanQueryError(
+            AgentPlanQueryErrorCode.INVALID_STORED_PLAN,
+            "The stored interpretation has an invalid structure.",
+        ) from exc
+
+    if interpretation is not None and record.status is not PlanStatus.EXECUTED:
+        _invalid_stored_plan("Only an executed plan may contain an interpretation.")
+
+    try:
         return AnalysisPlanDetails(
             id=record.id,
             question=record.question,
@@ -98,6 +107,7 @@ async def get_analysis_plan(session: AsyncSession, plan_id: UUID) -> AnalysisPla
                 arguments=arguments,
             ),
             result=result,
+            interpretation=interpretation,
             created_at=record.created_at,
             executed_at=record.executed_at,
         )
@@ -106,3 +116,14 @@ async def get_analysis_plan(session: AsyncSession, plan_id: UUID) -> AnalysisPla
             AgentPlanQueryErrorCode.INVALID_STORED_PLAN,
             "The stored analysis plan has an invalid structure.",
         ) from exc
+
+
+async def get_analysis_plan(session: AsyncSession, plan_id: UUID) -> AnalysisPlanDetails:
+    """Load and validate one server-controlled plan and its optional result."""
+    record = await session.scalar(select(AgentPlanRecord).where(AgentPlanRecord.id == plan_id))
+    if record is None:
+        raise AgentPlanQueryError(
+            AgentPlanQueryErrorCode.PLAN_NOT_FOUND,
+            "The requested analysis plan does not exist.",
+        )
+    return validate_analysis_plan_record(record)

@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trialops.agent.interpretation_model import InterpretationModel
 from trialops.agent.model import PlanModel
 from trialops.db.session import DatabaseResources
 
@@ -38,3 +39,17 @@ def get_plan_model(request: Request) -> PlanModel:
 
 
 PlanningModel = Annotated[PlanModel, Depends(get_plan_model)]
+
+
+def get_interpretation_model(request: Request) -> InterpretationModel:
+    """Return the configured explanation model without exposing provider details."""
+    model = getattr(request.app.state, "interpretation_model", None)
+    if not isinstance(model, InterpretationModel):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Interpretation model is unavailable.",
+        )
+    return model
+
+
+InterpretationProvider = Annotated[InterpretationModel, Depends(get_interpretation_model)]
