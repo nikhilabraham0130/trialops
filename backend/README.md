@@ -268,6 +268,28 @@ plan-creation endpoint returns `503` unless a fake or future live adapter is
 explicitly injected. This prevents a demo substitute from being mistaken for
 real AI. Retrieval and confirmation do not require a planning model.
 
+## Numerically grounded interpretation foundation
+
+After deterministic execution, TrialOps can ask a provider-neutral
+interpretation model to propose a plain-language summary. The model receives
+only the original question, user-visible purpose, method version, aggregate
+numeric facts, warning messages, and timing limitation. It does not receive
+the dataset UUID or subject-level evidence rows.
+
+The model must return strict JSON containing `summary` and `numeric_claims`.
+Each numeric claim identifies the exact result field it cites, such as
+`qualifying_measurement_count`. Trusted Python code verifies that the declared
+value equals that field and that every number in the prose matches the declared
+claims. Percentages are rejected because this ALT method does not calculate a
+percentage. Unsupported values cause the entire interpretation to be rejected.
+
+An accepted explanation is labeled `NUMERICALLY_VERIFIED` and records the
+prompt version and model identifier for future lineage. This status establishes
+numeric support only; it does not claim that every sentence has received
+clinical or statistical review. `FakeInterpretationModel` exercises the same
+contract without network access or an API key. Persistence and an HTTP endpoint
+for verified interpretations are the next integration step.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
