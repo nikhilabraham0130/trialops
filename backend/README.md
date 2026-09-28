@@ -302,10 +302,11 @@ the original snapshot. Only an unchanged plan receives the stored explanation.
 The complete interpretation is retained as JSON and is returned by
 `GET /agent/plans/{plan_id}` on later reads.
 
-The default application has no interpretation model configured, so this
-endpoint returns `503` unless a fake or future live adapter is explicitly
-injected. Invalid or numerically unsupported model output returns `502` and is
-not saved. An ineligible, changed, or already interpreted plan returns `409`.
+The default application has no interpretation model when no API key is
+configured, so this endpoint returns `503`. When DeepSeek settings are present,
+the same adapter supplies planning and interpretation responses. Invalid or
+numerically unsupported model output returns `502` and is not saved. An
+ineligible, changed, or already interpreted plan returns `409`.
 
 ## Configuration
 
@@ -322,6 +323,10 @@ application starts.
 | `TRIALOPS_POSTGRES_DB` | Local PostgreSQL database name | `trialops` |
 | `TRIALOPS_POSTGRES_PORT` | Host port published by Docker | `55432` |
 | `TRIALOPS_DATABASE_URL` | SQLAlchemy URL using `postgresql+psycopg` | local PostgreSQL |
+| `TRIALOPS_LLM_PROVIDER` | `deepseek` | `deepseek` |
+| `TRIALOPS_LLM_API_KEY` | Secret provider credential; omit to disable | live AI disabled |
+| `TRIALOPS_LLM_BASE_URL` | HTTPS provider base URL | `https://api.deepseek.com` |
+| `TRIALOPS_LLM_MODEL` | Active DeepSeek model ID | `deepseek-flash` |
 
 An unsupported value causes application startup to fail rather than silently
 using an unintended configuration.
@@ -333,6 +338,12 @@ password. The committed `.env.example` contains development-only placeholder
 credentials; real credentials belong only in the ignored `.env` file.
 The username, password, database name, and port in `TRIALOPS_DATABASE_URL` must
 match the corresponding local PostgreSQL values.
+
+For convenience, the DeepSeek-native names `DEEPSEEK_API_KEY`,
+`DEEPSEEK_BASE_URL`, and `DEEPSEEK_MODEL` are accepted as aliases. The key is
+stored as a `SecretStr` and must never be committed or logged. The currently
+supported low-cost model is `deepseek-flash`; retired `deepseek-chat` and
+`deepseek-reasoner` identifiers are rejected during startup.
 
 ## Local quality checks
 

@@ -5,7 +5,10 @@ import asyncio
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
+from pydantic import SecretStr
 
+from trialops.agent.deepseek import DeepSeekModelAdapter
+from trialops.agent.fake_model import FakePlanModel
 from trialops.api.routes.health import router as health_router
 from trialops.core.config import RuntimeEnvironment, Settings
 from trialops.db.session import DatabaseResources
@@ -66,6 +69,34 @@ def test_application_allows_frontend_to_post_plan_requests() -> None:
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
     assert "POST" in response.headers["access-control-allow-methods"]
+
+
+def test_application_configures_one_deepseek_adapter_for_both_model_roles() -> None:
+    """A configured key activates live planning and interpretation boundaries."""
+    application = create_app(
+        Settings(
+            env=RuntimeEnvironment.DEVELOPMENT,
+            llm_api_key=SecretStr("test-secret-key"),
+        )
+    )
+
+    assert isinstance(application.state.plan_model, DeepSeekModelAdapter)
+    assert application.state.interpretation_model is application.state.plan_model
+
+
+def test_explicit_model_dependency_overrides_configured_live_adapter() -> None:
+    """Tests and controlled deployments can inject a model implementation."""
+    fake = FakePlanModel('{"tool_name":"calculate_alt_gt_3x_uln","purpose":"Test."}')
+    application = create_app(
+        Settings(
+            env=RuntimeEnvironment.TEST,
+            llm_api_key=SecretStr("test-secret-key"),
+        ),
+        plan_model=fake,
+    )
+
+    assert application.state.plan_model is fake
+    assert isinstance(application.state.interpretation_model, DeepSeekModelAdapter)
 
 
 def test_readiness_confirms_application_configuration() -> None:

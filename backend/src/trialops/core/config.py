@@ -3,7 +3,7 @@
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import SecretStr, field_validator
+from pydantic import AliasChoices, Field, HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -31,6 +31,12 @@ class LogLevel(StrEnum):
     CRITICAL = "CRITICAL"
 
 
+class LLMProvider(StrEnum):
+    """External language-model providers supported by this application."""
+
+    DEEPSEEK = "deepseek"
+
+
 class Settings(BaseSettings):
     """Validated, immutable settings for one application process."""
 
@@ -39,6 +45,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
         frozen=True,
+        populate_by_name=True,
     )
 
     env: RuntimeEnvironment = RuntimeEnvironment.DEVELOPMENT
@@ -47,6 +54,19 @@ class Settings(BaseSettings):
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+    )
+    llm_provider: LLMProvider = LLMProvider.DEEPSEEK
+    llm_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TRIALOPS_LLM_API_KEY", "DEEPSEEK_API_KEY"),
+    )
+    llm_base_url: HttpUrl = Field(
+        default=HttpUrl("https://api.deepseek.com"),
+        validation_alias=AliasChoices("TRIALOPS_LLM_BASE_URL", "DEEPSEEK_BASE_URL"),
+    )
+    llm_model: str = Field(
+        default="deepseek-flash",
+        validation_alias=AliasChoices("TRIALOPS_LLM_MODEL", "DEEPSEEK_MODEL"),
     )
 
     @field_validator("database_url")
@@ -85,6 +105,25 @@ class Settings(BaseSettings):
         if "*" in value:
             raise ValueError("wildcard CORS origins are not permitted")
         return value
+
+    @field_validator("llm_api_key")
+    @classmethod
+    def validate_llm_api_key(cls, value: SecretStr | None) -> SecretStr | None:
+        """Treat an omitted key as disabled and reject misleading blank secrets."""
+        if value is not None and not value.get_secret_value().strip():
+            raise ValueError("LLM API key must contain visible text when configured")
+        return value
+
+    @field_validator("llm_model")
+    @classmethod
+    def validate_llm_model(cls, value: str) -> str:
+        """Require an active, visible provider model identifier."""
+        model = value.strip()
+        if not model:
+            raise ValueError("LLM model must contain visible text")
+        if model in {"deepseek-chat", "deepseek-reasoner"}:
+            raise ValueError("retired DeepSeek model; use deepseek-flash or deepseek-v4-pro")
+        return model
 
 
 @lru_cache

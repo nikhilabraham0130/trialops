@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from trialops.agent.deepseek import DeepSeekModelAdapter
 from trialops.agent.interpretation_model import InterpretationModel
 from trialops.agent.model import PlanModel
 from trialops.api.routes.agent import router as agent_router
@@ -35,6 +36,13 @@ def create_app(
 ) -> FastAPI:
     """Create and configure a TrialOps API instance."""
     app_settings = settings or get_settings()
+    configured_model: DeepSeekModelAdapter | None = None
+    if app_settings.llm_api_key is not None:
+        configured_model = DeepSeekModelAdapter(
+            api_key=app_settings.llm_api_key,
+            base_url=str(app_settings.llm_base_url),
+            model=app_settings.llm_model,
+        )
     database = create_database_resources(app_settings)
     application = FastAPI(
         title="TrialOps API",
@@ -44,8 +52,10 @@ def create_app(
     )
     application.state.settings = app_settings
     application.state.database = database
-    application.state.plan_model = plan_model
-    application.state.interpretation_model = interpretation_model
+    application.state.plan_model = plan_model if plan_model is not None else configured_model
+    application.state.interpretation_model = (
+        interpretation_model if interpretation_model is not None else configured_model
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(app_settings.cors_origins),
