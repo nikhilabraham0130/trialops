@@ -5,6 +5,7 @@ import {
   type AltAbnormalityResponse,
 } from "./api/analytics";
 import { getStudies, type StudyListResponse } from "./api/studies";
+import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import "./styles.css";
 
 type LoadStudies = (signal?: AbortSignal) => Promise<StudyListResponse>;
@@ -83,11 +84,11 @@ export function App({
 
       <main>
         <section className="hero" aria-labelledby="page-title">
-          <p className="eyebrow">Controlled data foundation</p>
-          <h1 id="page-title">Study overview</h1>
+          <p className="eyebrow">Governed clinical analytics</p>
+          <h1 id="page-title">From question to evidence</h1>
           <p className="hero-copy">
-            Review the dataset versions registered in TrialOps and the normalized subjects
-            available for governed analysis.
+            Propose a safety analysis, confirm the trusted calculation, and inspect its
+            evidence and verified explanation.
           </p>
         </section>
 
@@ -114,6 +115,12 @@ export function App({
           )}
 
           {state.status === "loaded" && state.response.studies.length > 0 && (
+            <>
+            <AnalysisWorkspace studies={state.response.studies} />
+            <div className="catalog-heading">
+              <p className="eyebrow">Source catalog</p>
+              <h2>Registered studies</h2>
+            </div>
             <div className="study-grid">
               {state.response.studies.map((study) => (
                 <article className="study-card" key={study.id}>
@@ -257,6 +264,7 @@ export function App({
                 </article>
               ))}
             </div>
+            </>
           )}
         </section>
       </main>
