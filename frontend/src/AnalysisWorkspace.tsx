@@ -14,6 +14,7 @@ import {
 import type { AltAbnormalityResponse } from "./api/analytics";
 import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
 import { SevereAeResult } from "./SevereAeCard";
+import { SubjectSafetyResult } from "./SubjectSafetyCard";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
 type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing";
@@ -238,9 +239,9 @@ export function AnalysisWorkspace({
         <label htmlFor="safety-question">Your question</label>
         <textarea id="safety-question" rows={3} maxLength={2000} value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Were any ALT measurements elevated, or which arm had severe AEs?" />
+          placeholder="Were any ALT measurements elevated, which arm had severe AEs, or summarize subject 01-701-1015?" />
         <div className="form-footer">
-          <span>Supports ALT above 3 × ULN and recorded severe AEs by actual arm.</span>
+          <span>Supports ALT above 3 × ULN, severe AEs by actual arm, and named-subject safety summaries.</span>
           <button className="analysis-button" type="submit" disabled={busy || !question.trim() || !selectedVersionId}>
             {step === "planning" ? "Preparing plan..." : "Propose analysis"}
           </button>
@@ -259,13 +260,18 @@ export function AnalysisWorkspace({
                 <h3 id="plan-title">
                   {plan.tool_call.name === "calculate_alt_gt_3x_uln"
                     ? "ALT threshold calculation"
-                    : "Severe AE incidence by arm"}
+                    : plan.tool_call.name === "compare_severe_ae_incidence"
+                      ? "Severe AE incidence by arm"
+                      : "Subject safety summary"}
                 </h3>
               </div>
               <span className="method-version">{plan.tool_call.name}</span>
             </div>
             <p><strong>Question:</strong> {plan.question}</p>
             <p><strong>Purpose:</strong> {plan.purpose}</p>
+            {plan.tool_call.arguments.subject_id && (
+              <p><strong>Subject:</strong> {plan.tool_call.arguments.subject_id}</p>
+            )}
             <p className="plan-id">Saved analysis ID: <code>{plan.id}</code></p>
             {plan.status === "AWAITING_CONFIRMATION" && (
               <div className="confirmation-row">
@@ -279,7 +285,9 @@ export function AnalysisWorkspace({
 
           {plan.result && ("arms" in plan.result
             ? <SevereAeResult result={plan.result} />
-            : <ResultPanel result={plan.result} />)}
+            : "unique_subject_id" in plan.result
+              ? <SubjectSafetyResult result={plan.result} />
+              : <ResultPanel result={plan.result} />)}
 
           {plan.status === "EXECUTED" && plan.result && !plan.interpretation && (
             <div className="explanation-action">

@@ -8,7 +8,11 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from trialops.agent.interpretation_contracts import StoredInterpretation
-from trialops.analytics.contracts import AltAbnormalityResponse, SevereAeIncidenceResponse
+from trialops.analytics.contracts import (
+    AltAbnormalityResponse,
+    SevereAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
+)
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
 
@@ -18,6 +22,7 @@ class ApprovedToolName(StrEnum):
 
     CALCULATE_ALT_GT_3X_ULN = "calculate_alt_gt_3x_uln"
     COMPARE_SEVERE_AE_INCIDENCE = "compare_severe_ae_incidence"
+    GET_SUBJECT_SAFETY_SUMMARY = "get_subject_safety_summary"
 
 
 class PlanStatus(StrEnum):
@@ -36,6 +41,7 @@ class ModelPlanProposal(BaseModel):
 
     tool_name: ApprovedToolName | Literal["unsupported"]
     purpose: NonEmptyText
+    subject_id: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("purpose")
     @classmethod
@@ -44,6 +50,17 @@ class ModelPlanProposal(BaseModel):
         if not value.strip():
             raise ValueError("purpose must contain visible text")
         return value
+
+    @field_validator("subject_id")
+    @classmethod
+    def normalize_subject_id(cls, value: str | None) -> str | None:
+        """Prevent whitespace-only subject identifiers in model proposals."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("subject_id must contain visible text")
+        return normalized
 
 
 class AltThresholdToolInput(BaseModel):
@@ -54,13 +71,22 @@ class AltThresholdToolInput(BaseModel):
     dataset_version_id: UUID
 
 
+class SubjectSafetyToolInput(BaseModel):
+    """Model-selected subject, bound to an application-selected dataset version."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset_version_id: UUID
+    subject_id: NonEmptyText
+
+
 class ApprovedToolCall(BaseModel):
     """One validated tool request embedded in a user-visible plan."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: ApprovedToolName
-    arguments: AltThresholdToolInput
+    arguments: AltThresholdToolInput | SubjectSafetyToolInput
 
 
 class AnalysisPlan(BaseModel):
@@ -85,7 +111,7 @@ class AnalysisExecution(BaseModel):
     plan_id: UUID
     status: Literal[PlanStatus.EXECUTED]
     tool_name: ApprovedToolName
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse
+    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse
 
 
 class AnalysisPlanDetails(BaseModel):
@@ -100,7 +126,7 @@ class AnalysisPlanDetails(BaseModel):
     status: PlanStatus
     confirmation_required: bool
     tool_call: ApprovedToolCall
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse | None
+    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse | None
     interpretation: StoredInterpretation | None
     created_at: datetime
     executed_at: datetime | None
@@ -128,10 +154,18 @@ def create_analysis_plan(
     if not isinstance(tool_name, ApprovedToolName):
         raise ValueError("an unsupported question cannot create an executable plan")
 
-    tool_call = ApprovedToolCall(
-        name=tool_name,
-        arguments=AltThresholdToolInput(dataset_version_id=dataset_version_id),
-    )
+    if tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
+        if proposal.subject_id is None:
+            raise ValueError("a subject safety plan requires a subject_id")
+        arguments: AltThresholdToolInput | SubjectSafetyToolInput = SubjectSafetyToolInput(
+            dataset_version_id=dataset_version_id,
+            subject_id=proposal.subject_id,
+        )
+    else:
+        if proposal.subject_id is not None:
+            raise ValueError("a non-subject tool cannot receive a subject_id")
+        arguments = AltThresholdToolInput(dataset_version_id=dataset_version_id)
+    tool_call = ApprovedToolCall(name=tool_name, arguments=arguments)
     return AnalysisPlan(
         id=plan_id or uuid4(),
         question=question,

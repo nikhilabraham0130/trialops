@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import type { AnalysisPlan, AnalysisPlanDetails, GovernanceEvaluation, StoredInterpretation } from "./api/agent";
-import type { AltAbnormalityResponse, SevereAeIncidenceResponse } from "./api/analytics";
+import type { AltAbnormalityResponse, SevereAeIncidenceResponse, SubjectSafetySummaryResponse } from "./api/analytics";
 import type { StudySummary } from "./api/studies";
 
 const studies: StudySummary[] = [{
@@ -63,6 +63,39 @@ const interpretation: StoredInterpretation = {
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("AnalysisWorkspace", () => {
+  it("shows the confirmed subject ID and its source-linked result", async () => {
+    const subjectPlan: AnalysisPlan = {
+      ...proposal,
+      question: "Summarize subject S1.",
+      tool_call: {
+        name: "get_subject_safety_summary",
+        arguments: { dataset_version_id: "dataset-1", subject_id: "S1" },
+      },
+    };
+    const subjectResult: SubjectSafetySummaryResponse = {
+      dataset_version_id: "dataset-1", method_version: "subject-safety-summary/1.0",
+      unique_subject_id: "S1", actual_arm: "Placebo", age: 55, age_unit: "YEARS", sex: "F",
+      ae_event_count: 1, severe_ae_event_count: 1, serious_ae_event_count: 0,
+      lab_result_count: 2, flagged_lab_count: 1, events: [], flagged_labs: [],
+      interpretation_limit: "Descriptive only.",
+    };
+    const confirmPlan = vi.fn().mockResolvedValue({
+      plan_id: "plan-1", status: "EXECUTED", tool_name: "get_subject_safety_summary",
+      result: subjectResult,
+    });
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace studies={studies} createPlan={vi.fn().mockResolvedValue(subjectPlan)}
+      confirmPlan={confirmPlan} />);
+    await user.type(screen.getByLabelText("Your question"), subjectPlan.question);
+    await user.click(screen.getByRole("button", { name: "Propose analysis" }));
+    expect(await screen.findByRole("heading", { name: "Subject safety summary" })).toBeInTheDocument();
+    expect(screen.getByText("S1")).toBeInTheDocument();
+    expect(confirmPlan).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Confirm and calculate" }));
+    expect(await screen.findByLabelText("Subject safety result")).toBeInTheDocument();
+    expect(screen.getByText("Descriptive only.")).toBeInTheDocument();
+  });
+
   it("can propose, confirm, and display the severe-AE tool instead of ALT", async () => {
     const severePlan: AnalysisPlan = {
       ...proposal,

@@ -21,6 +21,7 @@ from trialops.analytics.contracts import (
     AltAbnormalityResponse,
     SevereAeArmResponse,
     SevereAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
 )
 
 
@@ -133,6 +134,40 @@ def test_query_rebuilds_severe_ae_plan_with_matching_result() -> None:
     assert details.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
     assert isinstance(details.result, SevereAeIncidenceResponse)
     assert details.result.arms[0].incidence_percent == Decimal("33.33")
+
+
+def test_query_rebuilds_subject_plan_and_rejects_mismatched_result() -> None:
+    record = _record(PlanStatus.EXECUTED)
+    record.tool_name = ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    record.tool_arguments = {
+        "dataset_version_id": str(record.dataset_version_id),
+        "subject_id": "S1",
+    }
+    record.result = SubjectSafetySummaryResponse(
+        dataset_version_id=record.dataset_version_id,
+        method_version="subject-safety-summary/1.0",
+        unique_subject_id="S1",
+        actual_arm="Placebo",
+        age=55,
+        age_unit="YEARS",
+        sex="F",
+        ae_event_count=0,
+        severe_ae_event_count=0,
+        serious_ae_event_count=0,
+        lab_result_count=0,
+        flagged_lab_count=0,
+        events=(),
+        flagged_labs=(),
+        interpretation_limit="Descriptive only.",
+    ).model_dump(mode="json")
+    details = asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+    assert isinstance(details.result, SubjectSafetySummaryResponse)
+    assert details.result.unique_subject_id == "S1"
+
+    record.result["unique_subject_id"] = "S2"
+    with pytest.raises(AgentPlanQueryError) as raised:
+        asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+    assert raised.value.code is AgentPlanQueryErrorCode.INVALID_STORED_PLAN
 
 
 def test_query_reports_missing_plan() -> None:

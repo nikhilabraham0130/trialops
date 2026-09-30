@@ -5,7 +5,12 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
-from trialops.agent.contracts import AnalysisPlan, ModelPlanProposal, create_analysis_plan
+from trialops.agent.contracts import (
+    AnalysisPlan,
+    ApprovedToolName,
+    ModelPlanProposal,
+    create_analysis_plan,
+)
 from trialops.agent.model import PlanModel, PlanModelError, PlanModelRequest
 from trialops.agent.tools import get_approved_tool_specifications
 
@@ -67,9 +72,25 @@ async def propose_analysis_plan(
             "The question is not supported by the current approved analysis tools.",
         )
 
-    return create_analysis_plan(
-        question=question,
-        dataset_version_id=dataset_version_id,
-        proposal=proposal,
-        plan_id=plan_id,
-    )
+    if (
+        proposal.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+        and proposal.subject_id is not None
+        and proposal.subject_id not in question
+    ):
+        raise AgentPlanningError(
+            AgentPlanningErrorCode.INVALID_MODEL_RESPONSE,
+            "The proposed subject ID is not present in the question.",
+        )
+
+    try:
+        return create_analysis_plan(
+            question=question,
+            dataset_version_id=dataset_version_id,
+            proposal=proposal,
+            plan_id=plan_id,
+        )
+    except ValueError as exc:
+        raise AgentPlanningError(
+            AgentPlanningErrorCode.INVALID_MODEL_RESPONSE,
+            "The planning model returned arguments that do not match the approved tool.",
+        ) from exc

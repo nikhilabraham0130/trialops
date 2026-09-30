@@ -64,9 +64,9 @@ Specific libraries will be added only when the product requires them.
 The local application now imports and stores DM, AE, and LB records from the
 public pilot dataset. It offers deterministic ALT threshold analysis, recorded
 severe-AE subject incidence by actual treatment arm, and a source-linked
-subject-level safety view across DM, AE, and LB. The AI planning workflow can select either approved
-tool for ALT or severe-AE questions, require explicit confirmation, store the
-result, and request a numerically
+subject-level safety view across DM, AE, and LB. The AI planning workflow can
+select any of these three approved tools, require explicit confirmation, store
+the result, and request a numerically
 verified explanation. A backend governance checklist reports whether the saved
 analysis is ready for independent review.
 

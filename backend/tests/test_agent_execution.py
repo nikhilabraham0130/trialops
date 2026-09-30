@@ -16,11 +16,13 @@ from trialops.agent.execution import (
     execute_confirmed_plan,
 )
 from trialops.agent.models import AgentPlanRecord
+from trialops.analytics.contracts import SubjectSafetySummaryResponse
 from trialops.analytics.lab_abnormalities import AltAbnormalityResult
 from trialops.analytics.severe_adverse_events import (
     SevereAeArmResult,
     SevereAeIncidenceResult,
 )
+from trialops.analytics.subject_safety import SubjectNotFoundError, SubjectSafetySummary
 from trialops.validation.alt import DatasetVersionNotFoundError
 
 
@@ -139,6 +141,71 @@ def test_confirmation_executes_and_persists_selected_severe_ae_tool(
     assert execution.result.method_version == "severe-ae-incidence/1.0"
     assert record.result == execution.result.model_dump(mode="json")
     assert fake.commit_calls == 1
+
+
+def test_confirmation_executes_saved_subject_id_not_client_supplied_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record()
+    record.tool_name = ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    record.tool_arguments = {
+        "dataset_version_id": str(record.dataset_version_id),
+        "subject_id": "S1",
+    }
+    fake = _FakeSession(record)
+
+    async def calculation(
+        _session: AsyncSession, version_id: UUID, subject_id: str
+    ) -> SubjectSafetySummary:
+        assert version_id == record.dataset_version_id
+        assert subject_id == "S1"
+        return SubjectSafetySummary(
+            method_version="subject-safety-summary/1.0",
+            unique_subject_id="S1",
+            actual_arm="Placebo",
+            age=55,
+            age_unit="YEARS",
+            sex="F",
+            ae_event_count=0,
+            severe_ae_event_count=0,
+            serious_ae_event_count=0,
+            lab_result_count=0,
+            flagged_lab_count=0,
+            events=(),
+            flagged_labs=(),
+        )
+
+    monkeypatch.setattr("trialops.agent.execution.get_stored_subject_safety_summary", calculation)
+    execution = asyncio.run(execute_confirmed_plan(cast(AsyncSession, fake), record.id))
+    assert execution.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    assert isinstance(execution.result, SubjectSafetySummaryResponse)
+    assert execution.result.unique_subject_id == "S1"
+    assert record.result == execution.result.model_dump(mode="json")
+
+
+def test_confirmation_rejects_subject_missing_from_selected_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record()
+    record.tool_name = ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    record.tool_arguments = {
+        "dataset_version_id": str(record.dataset_version_id),
+        "subject_id": "S1",
+    }
+    fake = _FakeSession(record)
+
+    async def missing_subject(
+        _session: AsyncSession, _version_id: UUID, _subject_id: str
+    ) -> SubjectSafetySummary:
+        raise SubjectNotFoundError("missing")
+
+    monkeypatch.setattr(
+        "trialops.agent.execution.get_stored_subject_safety_summary", missing_subject
+    )
+    with pytest.raises(AgentExecutionError) as raised:
+        asyncio.run(execute_confirmed_plan(cast(AsyncSession, fake), record.id))
+    assert raised.value.code is AgentExecutionErrorCode.INVALID_STORED_PLAN
+    assert fake.rollback_calls == 1
 
 
 @pytest.mark.parametrize(

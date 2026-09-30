@@ -18,10 +18,15 @@ from trialops.agent.interpretation_model import (
     InterpretationModelError,
     InterpretationModelRequest,
 )
-from trialops.analytics.contracts import AltAbnormalityResponse, SevereAeIncidenceResponse
+from trialops.analytics.contracts import (
+    AltAbnormalityResponse,
+    SevereAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
+)
 
 PROMPT_VERSION = "alt-result-interpretation/1.0"
 SEVERE_AE_PROMPT_VERSION = "severe-ae-result-interpretation/1.0"
+SUBJECT_SAFETY_PROMPT_VERSION = "subject-safety-interpretation/1.0"
 _NUMBER_PATTERN = re.compile(r"(?<![\d.])[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?![\d.])")
 
 
@@ -42,7 +47,7 @@ class InterpretationError(RuntimeError):
 
 
 def build_numeric_facts(
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse,
+    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse,
 ) -> tuple[NumericFact, ...]:
     """Select the aggregate numeric facts the model is permitted to cite."""
     if isinstance(result, SevereAeIncidenceResponse):
@@ -74,6 +79,16 @@ def build_numeric_facts(
                 )
             )
         return tuple(facts)
+    if isinstance(result, SubjectSafetySummaryResponse):
+        return (
+            NumericFact(name="ae_event_count", value=Decimal(result.ae_event_count)),
+            NumericFact(name="severe_ae_event_count", value=Decimal(result.severe_ae_event_count)),
+            NumericFact(
+                name="serious_ae_event_count", value=Decimal(result.serious_ae_event_count)
+            ),
+            NumericFact(name="lab_result_count", value=Decimal(result.lab_result_count)),
+            NumericFact(name="flagged_lab_count", value=Decimal(result.flagged_lab_count)),
+        )
     return (
         NumericFact(
             name=NumericFactName.THRESHOLD_MULTIPLIER,
@@ -146,7 +161,7 @@ async def generate_grounded_interpretation(
     *,
     question: str,
     purpose: str,
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse,
+    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse,
 ) -> VerifiedInterpretation:
     """Request, validate, and numerically verify one AI explanation."""
     if not model.model_id.strip():
@@ -160,6 +175,9 @@ async def generate_grounded_interpretation(
     if isinstance(result, SevereAeIncidenceResponse):
         warnings: tuple[str, ...] = (result.population_definition,)
         group_labels = tuple(arm.arm for arm in result.arms)
+    elif isinstance(result, SubjectSafetySummaryResponse):
+        warnings = (result.interpretation_limit,)
+        group_labels = ()
     else:
         warnings = tuple(finding.message for finding in result.findings)
         group_labels = ()
@@ -169,7 +187,11 @@ async def generate_grounded_interpretation(
         method_version=result.method_version,
         numeric_facts=numeric_facts,
         warnings=warnings,
-        timing_limitation=result.timing_limitation,
+        timing_limitation=(
+            result.interpretation_limit
+            if isinstance(result, SubjectSafetySummaryResponse)
+            else result.timing_limitation
+        ),
         group_labels=group_labels,
     )
     try:
@@ -193,6 +215,12 @@ async def generate_grounded_interpretation(
         summary=proposal.summary,
         numeric_claims=proposal.numeric_claims,
         grounding_status=GroundingStatus.NUMERICALLY_VERIFIED,
-        prompt_version=SEVERE_AE_PROMPT_VERSION if is_severe_ae else PROMPT_VERSION,
+        prompt_version=(
+            SEVERE_AE_PROMPT_VERSION
+            if is_severe_ae
+            else SUBJECT_SAFETY_PROMPT_VERSION
+            if isinstance(result, SubjectSafetySummaryResponse)
+            else PROMPT_VERSION
+        ),
         model_id=model.model_id,
     )

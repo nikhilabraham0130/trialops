@@ -15,16 +15,23 @@ from trialops.agent.contracts import (
     AnalysisExecution,
     ApprovedToolName,
     PlanStatus,
+    SubjectSafetyToolInput,
 )
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
     SevereAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
     to_severe_ae_incidence_response,
+    to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
+from trialops.analytics.subject_safety import (
+    SubjectNotFoundError,
+    get_stored_subject_safety_summary,
+)
 from trialops.validation.alt import DatasetVersionNotFoundError
 
 
@@ -78,7 +85,12 @@ async def execute_confirmed_plan(
         )
 
     try:
-        arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
+        if record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
+            arguments: AltThresholdToolInput | SubjectSafetyToolInput = (
+                SubjectSafetyToolInput.model_validate(record.tool_arguments)
+            )
+        else:
+            arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
     except ValidationError as exc:
         await session.rollback()
         raise AgentExecutionError(
@@ -91,6 +103,7 @@ async def execute_confirmed_plan(
         not in {
             ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
             ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+            ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
         }
         or arguments.dataset_version_id != record.dataset_version_id
     ):
@@ -101,7 +114,9 @@ async def execute_confirmed_plan(
         )
 
     try:
-        structured_result: AltAbnormalityResponse | SevereAeIncidenceResponse
+        structured_result: (
+            AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse
+        )
         if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
             result = await calculate_stored_alt_gt_3x_uln(session, record.dataset_version_id)
             structured_result = to_alt_abnormality_response(record.dataset_version_id, result)
@@ -112,13 +127,26 @@ async def execute_confirmed_plan(
             structured_result = to_severe_ae_incidence_response(
                 record.dataset_version_id, severe_result
             )
+        elif record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
+            if not isinstance(arguments, SubjectSafetyToolInput):
+                await _reject_plan(
+                    session,
+                    AgentExecutionErrorCode.INVALID_STORED_PLAN,
+                    "The stored subject plan has invalid arguments.",
+                )
+            subject_result = await get_stored_subject_safety_summary(
+                session, record.dataset_version_id, arguments.subject_id
+            )
+            structured_result = to_subject_safety_summary_response(
+                record.dataset_version_id, subject_result
+            )
         else:
             await _reject_plan(
                 session,
                 AgentExecutionErrorCode.INVALID_STORED_PLAN,
                 "The stored analysis plan requests an unsupported tool.",
             )
-    except DatasetVersionNotFoundError as exc:
+    except (DatasetVersionNotFoundError, SubjectNotFoundError) as exc:
         await session.rollback()
         raise AgentExecutionError(
             AgentExecutionErrorCode.INVALID_STORED_PLAN,

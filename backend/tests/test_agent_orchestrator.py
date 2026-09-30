@@ -5,7 +5,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from trialops.agent.contracts import AnalysisPlan, ApprovedToolName, PlanStatus
+from trialops.agent.contracts import (
+    AnalysisPlan,
+    ApprovedToolName,
+    PlanStatus,
+    SubjectSafetyToolInput,
+)
 from trialops.agent.fake_model import FakePlanModel
 from trialops.agent.model import PlanModelError
 from trialops.agent.orchestrator import (
@@ -46,10 +51,11 @@ def test_orchestrator_sends_only_question_and_approved_catalog_to_fake_model() -
     assert len(model.requests) == 1
     request = model.requests[0]
     assert request.question == "Were any ALT measurements above three times the upper limit?"
-    assert len(request.tools) == 2
+    assert len(request.tools) == 3
     assert request.tools[0].name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert request.tools[0].requires_confirmation
     assert request.tools[1].name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    assert request.tools[2].name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
     assert plan.id == plan_id
     assert plan.dataset_version_id == dataset_version_id
     assert plan.tool_call.arguments.dataset_version_id == dataset_version_id
@@ -78,6 +84,43 @@ def test_orchestrator_can_select_severe_ae_tool_without_executing_it() -> None:
     assert plan.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
     assert plan.tool_call.arguments.dataset_version_id == dataset_version_id
     assert plan.status is PlanStatus.AWAITING_CONFIRMATION
+
+
+def test_orchestrator_can_select_an_explicitly_named_subject() -> None:
+    model = FakePlanModel(
+        '{"tool_name":"get_subject_safety_summary","purpose":"Show source records.",'
+        '"subject_id":"S1"}'
+    )
+    plan, _, _ = _propose(model, question="Summarize subject S1.")
+    assert plan.tool_call.name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    assert isinstance(plan.tool_call.arguments, SubjectSafetyToolInput)
+    assert plan.tool_call.arguments.subject_id == "S1"
+
+
+@pytest.mark.parametrize(
+    ("response", "question"),
+    [
+        (
+            '{"tool_name":"get_subject_safety_summary","purpose":"Show source records."}',
+            "Summarize subject S1.",
+        ),
+        (
+            '{"tool_name":"get_subject_safety_summary","purpose":"Show source records.",'
+            '"subject_id":"S2"}',
+            "Summarize subject S1.",
+        ),
+        (
+            '{"tool_name":"calculate_alt_gt_3x_uln","purpose":"Check ALT.","subject_id":"S1"}',
+            "Check ALT for S1.",
+        ),
+    ],
+)
+def test_orchestrator_rejects_missing_invented_or_unexpected_subject_ids(
+    response: str, question: str
+) -> None:
+    with pytest.raises(AgentPlanningError) as raised:
+        _propose(FakePlanModel(response), question=question)
+    assert raised.value.code is AgentPlanningErrorCode.INVALID_MODEL_RESPONSE
 
 
 def test_orchestrator_refuses_a_question_outside_the_tool_catalog() -> None:

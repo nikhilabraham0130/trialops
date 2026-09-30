@@ -75,6 +75,11 @@ The subject-level safety view is available at
 It returns separate AE severity and seriousness counts plus LB rows whose
 source `LBNRIND` is `LOW`, `HIGH`, or `ABNORMAL`. These are descriptive source
 classifications, not treatment-emergent assessments or diagnoses.
+The agent can also choose `get_subject_safety_summary` when a question names
+an exact `USUBJID`. It must copy that ID from the question; the selected dataset
+version still comes from the application. The saved plan shows the subject ID
+before confirmation, and the same ID is enforced when executing and reloading
+the result.
 
 ## Health checks
 
@@ -224,18 +229,20 @@ GET /dataset-versions/{dataset_version_id}/analytics/severe-ae-incidence
 
 ## Agent control foundation
 
-The agent catalog exposes two implemented capabilities:
-`calculate_alt_gt_3x_uln` and `compare_severe_ae_incidence`. A language model
-may propose one of these tools and provide a
-short, user-visible purpose, but it cannot supply the dataset-version ID. The
-application binds the proposal to the immutable version the user selected.
+The agent catalog exposes three implemented capabilities:
+`calculate_alt_gt_3x_uln`, `compare_severe_ae_incidence`, and
+`get_subject_safety_summary`. A language model may propose one of these tools
+and provide a short, user-visible purpose, but it cannot supply the
+dataset-version ID. For the subject tool it must also copy an exact `USUBJID`
+from the question. The application binds the proposal to the immutable version
+the user selected.
 
 The resulting `AnalysisPlan` is typed, immutable, and starts in
 `AWAITING_CONFIRMATION`. It records the original question, selected dataset
 version, approved tool call, and the fact that confirmation is required. No
 tool executes during plan creation. Unknown tool names, extra model-generated
 fields, blank purposes, and blank questions are rejected.
-For a question neither tool can answer, the model can propose `unsupported`;
+For a question no approved tool can answer, the model can propose `unsupported`;
 the API returns `ANALYSIS_NOT_SUPPORTED` without creating an executable plan.
 
 `propose_analysis_plan` is the first orchestrator step. It gives a provider-
@@ -278,8 +285,9 @@ POST /agent/plans/{plan_id}/confirm
 The request body must be `{ "confirmed": true }`; it does not repeat the tool,
 dataset version, or arguments. TrialOps locks and retrieves the stored plan,
 requires status `AWAITING_CONFIRMATION`, validates its trusted arguments, and
-runs the selected approved deterministic ALT or severe-AE calculation. The structured result and
-execution time are stored on the plan before the endpoint returns `EXECUTED`.
+runs the selected approved deterministic ALT, severe-AE, or subject-safety
+calculation. The structured result and execution time are stored on the plan
+before the endpoint returns `EXECUTED`.
 
 The row lock prevents two simultaneous confirmation requests from executing
 the same plan twice. Missing plans return `404`; completed, malformed, or

@@ -11,6 +11,7 @@ from trialops.agent.fake_interpretation_model import FakeInterpretationModel
 from trialops.agent.interpretation import (
     PROMPT_VERSION,
     SEVERE_AE_PROMPT_VERSION,
+    SUBJECT_SAFETY_PROMPT_VERSION,
     InterpretationError,
     InterpretationErrorCode,
     build_numeric_facts,
@@ -26,6 +27,7 @@ from trialops.analytics.contracts import (
     AltAbnormalityResponse,
     SevereAeArmResponse,
     SevereAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
     ValidationFindingResponse,
 )
 from trialops.validation.findings import FindingSeverity
@@ -84,6 +86,50 @@ VALID_RESPONSE = """{
     {"field": "subjects_with_qualifying_measurement", "value": 3}
   ]
 }"""
+
+
+def test_subject_interpretation_uses_only_aggregate_counts_not_source_rows() -> None:
+    result = SubjectSafetySummaryResponse(
+        dataset_version_id=UUID("00000000-0000-0000-0000-000000000001"),
+        method_version="subject-safety-summary/1.0",
+        unique_subject_id="S1",
+        actual_arm="Placebo",
+        age=55,
+        age_unit="YEARS",
+        sex="F",
+        ae_event_count=3,
+        severe_ae_event_count=1,
+        serious_ae_event_count=0,
+        lab_result_count=10,
+        flagged_lab_count=2,
+        events=(),
+        flagged_labs=(),
+        interpretation_limit="These are source classifications, not diagnoses.",
+    )
+    model = FakeInterpretationModel(
+        '{"summary":"The subject had 3 AE events and 2 source-flagged labs.",'
+        '"numeric_claims":['
+        '{"field":"ae_event_count","value":3},'
+        '{"field":"flagged_lab_count","value":2}]}'
+    )
+    verified = asyncio.run(
+        generate_grounded_interpretation(
+            model,
+            question="Summarize S1.",
+            purpose="Show source records.",
+            result=result,
+        )
+    )
+    assert verified.prompt_version == SUBJECT_SAFETY_PROMPT_VERSION
+    assert {fact.name for fact in model.requests[0].numeric_facts} == {
+        "ae_event_count",
+        "severe_ae_event_count",
+        "serious_ae_event_count",
+        "lab_result_count",
+        "flagged_lab_count",
+    }
+    assert model.requests[0].group_labels == ()
+    assert model.requests[0].warnings == ("These are source classifications, not diagnoses.",)
 
 
 def test_numeric_fact_catalog_uses_only_aggregate_result_fields() -> None:

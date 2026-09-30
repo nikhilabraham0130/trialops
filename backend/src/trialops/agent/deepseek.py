@@ -15,8 +15,11 @@ from trialops.agent.model import PlanModelError, PlanModelRequest
 _PLAN_SYSTEM_PROMPT = """You select one approved TrialOps analysis tool only when it directly
 answers the user's question. If no listed tool can answer it, return tool_name "unsupported".
 Return JSON only, using exactly this shape:
-{"tool_name":"approved tool name or unsupported","purpose":"brief explanation"}
-Do not add arguments, dataset identifiers, markdown, or unapproved tools.
+{"tool_name":"approved tool name or unsupported","purpose":"brief explanation","subject_id":null}
+For get_subject_safety_summary, copy the exact USUBJID from the question into subject_id.
+If no exact subject identifier is present, return unsupported with subject_id null.
+For every other tool, subject_id must be null. Never invent an identifier.
+Do not add other arguments, dataset identifiers, markdown, or unapproved tools.
 Do not equate AESEV = SEVERE with seriousness, CTCAE grades, or treatment emergence.
 The purpose must describe why the selected tool answers the question, or why it is unsupported.
 """

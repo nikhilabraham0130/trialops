@@ -14,10 +14,15 @@ from trialops.agent.contracts import (
     ApprovedToolCall,
     ApprovedToolName,
     PlanStatus,
+    SubjectSafetyToolInput,
 )
 from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.agent.models import AgentPlanRecord
-from trialops.analytics.contracts import AltAbnormalityResponse, SevereAeIncidenceResponse
+from trialops.analytics.contracts import (
+    AltAbnormalityResponse,
+    SevereAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
+)
 
 
 class AgentPlanQueryErrorCode(StrEnum):
@@ -43,7 +48,12 @@ def _invalid_stored_plan(message: str) -> Never:
 def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetails:
     """Rebuild one ORM record only when all stored fields agree."""
     try:
-        arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
+        if record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
+            arguments: AltThresholdToolInput | SubjectSafetyToolInput = (
+                SubjectSafetyToolInput.model_validate(record.tool_arguments)
+            )
+        else:
+            arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
     except ValidationError as exc:
         raise AgentPlanQueryError(
             AgentPlanQueryErrorCode.INVALID_STORED_PLAN,
@@ -55,16 +65,21 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
         not in {
             ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
             ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+            ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
         }
         or arguments.dataset_version_id != record.dataset_version_id
     ):
         _invalid_stored_plan("The stored analysis plan does not match an approved tool invocation.")
 
     try:
-        result: AltAbnormalityResponse | SevereAeIncidenceResponse | None = None
+        result: (
+            AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse | None
+        ) = None
         if record.result is not None:
             if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
                 result = AltAbnormalityResponse.model_validate(record.result)
+            elif record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
+                result = SubjectSafetySummaryResponse.model_validate(record.result)
             else:
                 result = SevereAeIncidenceResponse.model_validate(record.result)
     except ValidationError as exc:
@@ -75,6 +90,13 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
 
     if result is not None and result.dataset_version_id != record.dataset_version_id:
         _invalid_stored_plan("The stored result does not match the plan's dataset version.")
+
+    if (
+        isinstance(result, SubjectSafetySummaryResponse)
+        and isinstance(arguments, SubjectSafetyToolInput)
+        and result.unique_subject_id != arguments.subject_id
+    ):
+        _invalid_stored_plan("The stored subject result does not match the confirmed subject ID.")
 
     if record.status is PlanStatus.EXECUTED and (result is None or record.executed_at is None):
         _invalid_stored_plan("The executed plan is missing its result or execution time.")

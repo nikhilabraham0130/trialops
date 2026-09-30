@@ -10,15 +10,16 @@ from trialops.agent.contracts import (
     ApprovedToolName,
     ModelPlanProposal,
     PlanStatus,
+    SubjectSafetyToolInput,
     create_analysis_plan,
 )
 from trialops.agent.tools import get_approved_tool_specifications
 
 
-def test_catalog_exposes_only_implemented_alt_and_severe_ae_tools() -> None:
+def test_catalog_exposes_only_implemented_clinical_tools() -> None:
     specifications = get_approved_tool_specifications()
 
-    assert len(specifications) == 2
+    assert len(specifications) == 3
     specification = specifications[0]
     assert specification.name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert specification.requires_confirmation
@@ -32,6 +33,49 @@ def test_catalog_exposes_only_implemented_alt_and_severe_ae_tools() -> None:
     assert severe.requires_confirmation
     assert "not treatment-emergent" in severe.description
     assert severe.input_schema["required"] == ["dataset_version_id"]
+    subject = specifications[2]
+    assert subject.name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    assert subject.requires_confirmation
+    assert set(subject.input_schema["required"]) == {"dataset_version_id", "subject_id"}
+
+
+def test_subject_plan_binds_model_selected_id_to_application_selected_version() -> None:
+    version_id = uuid4()
+    plan = create_analysis_plan(
+        question="Summarize subject S1.",
+        dataset_version_id=version_id,
+        proposal=ModelPlanProposal(
+            tool_name=ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
+            purpose="Show this subject's AE and LB source records.",
+            subject_id=" S1 ",
+        ),
+    )
+    assert plan.tool_call.name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    assert plan.tool_call.arguments.dataset_version_id == version_id
+    assert isinstance(plan.tool_call.arguments, SubjectSafetyToolInput)
+    assert plan.tool_call.arguments.subject_id == "S1"
+
+
+def test_subject_plan_requires_id_and_other_tools_reject_it() -> None:
+    with pytest.raises(ValueError, match="requires a subject_id"):
+        create_analysis_plan(
+            question="Summarize this subject.",
+            dataset_version_id=uuid4(),
+            proposal=ModelPlanProposal(
+                tool_name=ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
+                purpose="Show source records.",
+            ),
+        )
+    with pytest.raises(ValueError, match="non-subject tool"):
+        create_analysis_plan(
+            question="Check ALT for S1.",
+            dataset_version_id=uuid4(),
+            proposal=ModelPlanProposal(
+                tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+                purpose="Check ALT.",
+                subject_id="S1",
+            ),
+        )
 
 
 def test_application_preserves_the_selected_severe_ae_tool() -> None:
