@@ -11,6 +11,10 @@ refresh reloads its state from PostgreSQL.
 Direct `Run ALT check` and `Run severe-AE check` actions are also available in
 the study catalog. The AI workspace can choose either of these two approved
 deterministic tools.
+The catalog also has a subject safety lookup by `USUBJID`. It reads DM, AE,
+and LB from one dataset version and displays source-linked events and labs
+flagged by the source. This third view is direct backend analytics; it is not
+yet an AI-selectable tool and does not infer diagnoses or treatment emergence.
 
 The browser displays the returned method version, eligible measurements,
 qualifying measurements, distinct-subject count, timing limitation, validation

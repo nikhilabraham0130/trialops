@@ -21,6 +21,12 @@ from trialops.analytics.severe_adverse_events import (
     SevereAeEvidence,
     SevereAeIncidenceResult,
 )
+from trialops.analytics.subject_safety import (
+    FlaggedLab,
+    SafetyEvent,
+    SubjectNotFoundError,
+    SubjectSafetySummary,
+)
 from trialops.api.dependencies import get_database_session
 from trialops.api.routes.analytics import router as analytics_router
 from trialops.core.config import RuntimeEnvironment, Settings
@@ -217,5 +223,109 @@ def test_severe_ae_endpoint_returns_404_for_unknown_version(
         _request(application, f"/dataset-versions/{uuid4()}/analytics/severe-ae-incidence")
     )
 
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "DATASET_VERSION_NOT_FOUND"
+
+
+def test_subject_safety_endpoint_returns_source_linked_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trialops.datasets.adverse_events import AdverseEventSeverity
+    from trialops.datasets.laboratory_results import NormalRangeIndicator
+
+    version_id = uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def fake_summary(
+        _session: AsyncSession, requested_version_id: object, subject_id: str
+    ) -> SubjectSafetySummary:
+        assert requested_version_id == version_id
+        assert subject_id == "SUBJECT-001"
+        return SubjectSafetySummary(
+            method_version="subject-safety-summary/1.0",
+            unique_subject_id=subject_id,
+            actual_arm="Placebo",
+            age=55,
+            age_unit="YEARS",
+            sex="F",
+            ae_event_count=1,
+            severe_ae_event_count=1,
+            serious_ae_event_count=0,
+            lab_result_count=2,
+            flagged_lab_count=1,
+            events=(SafetyEvent(10, "Headache", AdverseEventSeverity.SEVERE, "N", "2020-01-01"),),
+            flagged_labs=(
+                FlaggedLab(
+                    20,
+                    "ALT",
+                    Decimal("55"),
+                    "U/L",
+                    Decimal("10"),
+                    Decimal("40"),
+                    NormalRangeIndicator.HIGH,
+                    None,
+                    "2020-01-02",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.get_stored_subject_safety_summary", fake_summary
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+    response = asyncio.run(
+        _request(
+            application,
+            f"/dataset-versions/{version_id}/analytics/subjects/SUBJECT-001/safety-summary",
+        )
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["unique_subject_id"] == "SUBJECT-001"
+    assert body["severe_ae_event_count"] == 1
+    assert body["serious_ae_event_count"] == 0
+    assert body["flagged_labs"][0]["standard_result"] == "55"
+    assert "not a derived clinical diagnosis" in body["interpretation_limit"]
+
+
+def test_subject_safety_endpoint_returns_controlled_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def missing_subject(
+        _session: AsyncSession, _version_id: object, _subject_id: str
+    ) -> SubjectSafetySummary:
+        raise SubjectNotFoundError("The subject is not in the selected dataset version.")
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.get_stored_subject_safety_summary", missing_subject
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+    response = asyncio.run(
+        _request(application, f"/dataset-versions/{uuid4()}/analytics/subjects/S1/safety-summary")
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "SUBJECT_NOT_FOUND"
+
+
+def test_subject_safety_endpoint_rejects_unknown_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def missing_version(
+        _session: AsyncSession, _version_id: object, _subject_id: str
+    ) -> SubjectSafetySummary:
+        raise DatasetVersionNotFoundError("The selected dataset version does not exist.")
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.get_stored_subject_safety_summary", missing_version
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+    response = asyncio.run(
+        _request(application, f"/dataset-versions/{uuid4()}/analytics/subjects/S1/safety-summary")
+    )
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "DATASET_VERSION_NOT_FOUND"

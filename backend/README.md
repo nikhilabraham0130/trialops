@@ -61,11 +61,20 @@ docker compose down
 
 ```powershell
 cd backend
-python -m uvicorn trialops.main:app --reload --env-file ..\.env
+python -m trialops.serve --env-file ..\.env
 ```
 
 The API will be available at `http://127.0.0.1:8000`. FastAPI's interactive API
 documentation will be available at `http://127.0.0.1:8000/docs`.
+The local launcher selects a Windows event loop compatible with async Psycopg
+before Uvicorn starts; invoking Uvicorn directly on Windows can make database
+endpoints fail even though the API process starts.
+
+The subject-level safety view is available at
+`GET /dataset-versions/{version_id}/analytics/subjects/{USUBJID}/safety-summary`.
+It returns separate AE severity and seriousness counts plus LB rows whose
+source `LBNRIND` is `LOW`, `HIGH`, or `ABNORMAL`. These are descriptive source
+classifications, not treatment-emergent assessments or diagnoses.
 
 ## Health checks
 

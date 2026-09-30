@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAltAbnormalities, getSevereAeIncidence } from "./analytics";
+import { getAltAbnormalities, getSevereAeIncidence, getSubjectSafetySummary } from "./analytics";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -60,6 +60,27 @@ describe("getSevereAeIncidence", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
     await expect(getSevereAeIncidence("missing")).rejects.toThrow(
       "Severe-AE analytics request failed with status 404.",
+    );
+  });
+});
+
+describe("getSubjectSafetySummary", () => {
+  it("encodes the selected subject within the selected version URL", async () => {
+    const body = { unique_subject_id: "S/1", events: [], flagged_labs: [] };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getSubjectSafetySummary("version-1", "S/1")).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/dataset-versions/version-1/analytics/subjects/S%2F1/safety-summary",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+  });
+
+  it("rejects a subject that the API cannot load", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+    await expect(getSubjectSafetySummary("version-1", "missing")).rejects.toThrow(
+      "Subject safety request failed with status 404.",
     );
   });
 });

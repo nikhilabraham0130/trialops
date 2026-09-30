@@ -500,6 +500,27 @@ h1 {
   font-size: 1rem;
 }
 
+.subject-lookup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.subject-lookup label {
+  color: #52635e;
+  font-size: 0.8rem;
+}
+
+.subject-lookup input {
+  min-width: 220px;
+  border: 1px solid #b9ccc1;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font: inherit;
+}
+
 .method-version {
   border-radius: 5px;
   padding: 5px 8px;

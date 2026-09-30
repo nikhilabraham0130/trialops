@@ -10,6 +10,7 @@ from trialops.analytics.lab_abnormalities import (
     TimingClassification,
 )
 from trialops.analytics.severe_adverse_events import SevereAeIncidenceResult
+from trialops.analytics.subject_safety import SubjectSafetySummary
 from trialops.validation.findings import FindingSeverity
 
 
@@ -131,5 +132,78 @@ def to_severe_ae_incidence_response(
         evidence=tuple(
             SevereAeEvidenceResponse.model_validate(item, from_attributes=True)
             for item in result.evidence
+        ),
+    )
+
+
+class SubjectSafetyEventResponse(BaseModel):
+    source_record_number: int
+    preferred_term: str
+    severity: str
+    serious_flag: str
+    start_date_text: str
+
+
+class SubjectFlaggedLabResponse(BaseModel):
+    source_record_number: int
+    test_code: str
+    standard_result: Decimal | None
+    standard_unit: str | None
+    lower_reference_limit: Decimal | None
+    upper_reference_limit: Decimal | None
+    range_indicator: str
+    baseline_flag: str | None
+    observed_at_text: str
+
+
+class SubjectSafetySummaryResponse(BaseModel):
+    """Source-linked description, not a medical or treatment-emergent assessment."""
+
+    dataset_version_id: UUID
+    method_version: str
+    unique_subject_id: str
+    actual_arm: str
+    age: int
+    age_unit: str
+    sex: str
+    ae_event_count: int
+    severe_ae_event_count: int
+    serious_ae_event_count: int
+    lab_result_count: int
+    flagged_lab_count: int
+    events: tuple[SubjectSafetyEventResponse, ...]
+    flagged_labs: tuple[SubjectFlaggedLabResponse, ...]
+    interpretation_limit: str
+
+
+def to_subject_safety_summary_response(
+    dataset_version_id: UUID, result: SubjectSafetySummary
+) -> SubjectSafetySummaryResponse:
+    """Make the source classification and timing limits explicit in the API."""
+    return SubjectSafetySummaryResponse(
+        dataset_version_id=dataset_version_id,
+        method_version=result.method_version,
+        unique_subject_id=result.unique_subject_id,
+        actual_arm=result.actual_arm,
+        age=result.age,
+        age_unit=result.age_unit,
+        sex=result.sex,
+        ae_event_count=result.ae_event_count,
+        severe_ae_event_count=result.severe_ae_event_count,
+        serious_ae_event_count=result.serious_ae_event_count,
+        lab_result_count=result.lab_result_count,
+        flagged_lab_count=result.flagged_lab_count,
+        events=tuple(
+            SubjectSafetyEventResponse.model_validate(event, from_attributes=True)
+            for event in result.events
+        ),
+        flagged_labs=tuple(
+            SubjectFlaggedLabResponse.model_validate(lab, from_attributes=True)
+            for lab in result.flagged_labs
+        ),
+        interpretation_limit=(
+            "AE severity (AESEV) and seriousness (AESER) are distinct. Flagged labs use the "
+            "source LBNRIND classification, not a derived clinical diagnosis. Event timing "
+            "and treatment emergence have not been assessed."
         ),
     )

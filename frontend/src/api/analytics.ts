@@ -54,6 +54,40 @@ export interface SevereAeIncidenceResponse {
   }[];
 }
 
+export interface SubjectSafetySummaryResponse {
+  dataset_version_id: string;
+  method_version: string;
+  unique_subject_id: string;
+  actual_arm: string;
+  age: number;
+  age_unit: string;
+  sex: string;
+  ae_event_count: number;
+  severe_ae_event_count: number;
+  serious_ae_event_count: number;
+  lab_result_count: number;
+  flagged_lab_count: number;
+  events: {
+    source_record_number: number;
+    preferred_term: string;
+    severity: string;
+    serious_flag: string;
+    start_date_text: string;
+  }[];
+  flagged_labs: {
+    source_record_number: number;
+    test_code: string;
+    standard_result: string | null;
+    standard_unit: string | null;
+    lower_reference_limit: string | null;
+    upper_reference_limit: string | null;
+    range_indicator: string;
+    baseline_flag: string | null;
+    observed_at_text: string;
+  }[];
+  interpretation_limit: string;
+}
+
 const apiUrl = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export async function getAltAbnormalities(
@@ -87,4 +121,19 @@ export async function getSevereAeIncidence(
     throw new Error(`Severe-AE analytics request failed with status ${response.status}.`);
   }
   return (await response.json()) as SevereAeIncidenceResponse;
+}
+
+export async function getSubjectSafetySummary(
+  datasetVersionId: string,
+  uniqueSubjectId: string,
+  signal?: AbortSignal,
+): Promise<SubjectSafetySummaryResponse> {
+  const response = await fetch(
+    `${apiUrl}/dataset-versions/${encodeURIComponent(datasetVersionId)}/analytics/subjects/${encodeURIComponent(uniqueSubjectId)}/safety-summary`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(`Subject safety request failed with status ${response.status}.`);
+  }
+  return (await response.json()) as SubjectSafetySummaryResponse;
 }
