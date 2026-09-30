@@ -1,14 +1,16 @@
 # TrialOps frontend
 
 This React and TypeScript application provides an analysis workspace above the
-study catalog. Select a dataset version, ask an ALT safety question, review the
+study catalog. Select a dataset version, ask about ALT elevation or recorded
+severe AEs by treatment arm, review the
 AI-proposed approved tool, and explicitly confirm before Python runs the
 calculation. The structured result and source evidence are shown separately
 from the AI interpretation. A saved plan ID is placed in the page URL so a
 refresh reloads its state from PostgreSQL.
 
-The existing direct `Run ALT check` action remains available in the study
-catalog. Both paths request the backend's versioned `ALT > 3x ULN` calculation.
+Direct `Run ALT check` and `Run severe-AE check` actions are also available in
+the study catalog. The AI workspace can choose either of these two approved
+deterministic tools.
 
 The browser displays the returned method version, eligible measurements,
 qualifying measurements, distinct-subject count, timing limitation, validation
@@ -22,8 +24,8 @@ The workspace calls `POST /agent/plans`, `POST /agent/plans/{id}/confirm`,
 read-only `GET /agent/plans/{id}/governance` checklist. Recheck governance after
 execution or interpretation because the saved state has changed. A decision of
 `REVIEW_REQUIRED` does not mean approved; independent review is not implemented
-in the demo yet. Planning
-and explanation require a configured AI provider; calculation and saved plan
+in the demo yet. Planning and explanation require a configured AI provider;
+calculation and saved plan
 retrieval use the stored backend state. If the provider is unavailable, the page
 shows the backend error and leaves any completed calculation visible.
 

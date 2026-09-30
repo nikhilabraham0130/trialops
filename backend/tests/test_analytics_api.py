@@ -16,6 +16,11 @@ from trialops.analytics.lab_abnormalities import (
     AltExceedance,
     TimingClassification,
 )
+from trialops.analytics.severe_adverse_events import (
+    SevereAeArmResult,
+    SevereAeEvidence,
+    SevereAeIncidenceResult,
+)
 from trialops.api.dependencies import get_database_session
 from trialops.api.routes.analytics import router as analytics_router
 from trialops.core.config import RuntimeEnvironment, Settings
@@ -145,3 +150,72 @@ def test_alt_endpoint_requires_database_resources() -> None:
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Database resources are unavailable."}
+
+
+def test_severe_ae_endpoint_serializes_population_counts_and_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version_id = uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def fake_calculation(
+        _session: AsyncSession, requested_version_id: object
+    ) -> SevereAeIncidenceResult:
+        assert requested_version_id == version_id
+        return SevereAeIncidenceResult(
+            method_version="severe-ae-incidence/1.0",
+            excluded_screen_failure_subjects=2,
+            arms=(SevereAeArmResult("Placebo", 3, 1, 2, Decimal("33.33")),),
+            evidence=(SevereAeEvidence(42, "SUBJECT-001", "Placebo", "Headache"),),
+        )
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.calculate_stored_severe_ae_incidence",
+        fake_calculation,
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+
+    response = asyncio.run(
+        _request(application, f"/dataset-versions/{version_id}/analytics/severe-ae-incidence")
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["dataset_version_id"] == str(version_id)
+    assert body["excluded_screen_failure_subjects"] == 2
+    assert body["arms"] == [
+        {
+            "arm": "Placebo",
+            "subjects_in_arm": 3,
+            "subjects_with_severe_ae": 1,
+            "severe_ae_event_count": 2,
+            "incidence_percent": "33.33",
+        }
+    ]
+    assert body["evidence"][0]["source_record_number"] == 42
+    assert "not confirmed treatment-emergent" in body["timing_limitation"]
+    assert "ACTARM" in body["population_definition"]
+
+
+def test_severe_ae_endpoint_returns_404_for_unknown_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def unknown_version(
+        _session: AsyncSession, _version_id: object
+    ) -> SevereAeIncidenceResult:
+        raise DatasetVersionNotFoundError("The selected dataset version does not exist.")
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.calculate_stored_severe_ae_incidence",
+        unknown_version,
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+
+    response = asyncio.run(
+        _request(application, f"/dataset-versions/{uuid4()}/analytics/severe-ae-incidence")
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "DATASET_VERSION_NOT_FOUND"

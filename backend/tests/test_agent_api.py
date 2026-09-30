@@ -259,6 +259,28 @@ def test_plan_endpoint_rejects_blank_question() -> None:
     assert response.json()["detail"]["code"] == "INVALID_QUESTION"
 
 
+def test_plan_endpoint_returns_safe_unsupported_error_without_storing_a_plan() -> None:
+    version_id = uuid4()
+    model = FakePlanModel('{"tool_name":"unsupported","purpose":"CTCAE grade is not available."}')
+    application = create_app(Settings(env=RuntimeEnvironment.TEST), plan_model=model)
+    fake_session = _FakeSession(version_id)
+    _override_session(application, fake_session)
+
+    response = asyncio.run(
+        _post(
+            application,
+            {
+                "question": "Which subjects had Grade 3 events?",
+                "dataset_version_id": str(version_id),
+            },
+        )
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "ANALYSIS_NOT_SUPPORTED"
+    assert fake_session.commit_calls == 0
+
+
 def test_plan_endpoint_returns_conflict_when_plan_cannot_be_stored() -> None:
     version_id = uuid4()
     conflict = IntegrityError("insert", {}, Exception("duplicate plan id"))

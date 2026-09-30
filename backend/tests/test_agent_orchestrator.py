@@ -46,9 +46,10 @@ def test_orchestrator_sends_only_question_and_approved_catalog_to_fake_model() -
     assert len(model.requests) == 1
     request = model.requests[0]
     assert request.question == "Were any ALT measurements above three times the upper limit?"
-    assert len(request.tools) == 1
+    assert len(request.tools) == 2
     assert request.tools[0].name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert request.tools[0].requires_confirmation
+    assert request.tools[1].name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
     assert plan.id == plan_id
     assert plan.dataset_version_id == dataset_version_id
     assert plan.tool_call.arguments.dataset_version_id == dataset_version_id
@@ -62,6 +63,30 @@ def test_orchestrator_does_not_execute_the_proposed_tool() -> None:
 
     assert plan.confirmation_required
     assert plan.status is PlanStatus.AWAITING_CONFIRMATION
+
+
+def test_orchestrator_can_select_severe_ae_tool_without_executing_it() -> None:
+    model = FakePlanModel(
+        '{"tool_name":"compare_severe_ae_incidence",'
+        '"purpose":"Count subjects with recorded severe AEs by actual arm."}'
+    )
+
+    plan, dataset_version_id, _ = _propose(
+        model, question="Which treatment arm had recorded severe AEs?"
+    )
+
+    assert plan.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    assert plan.tool_call.arguments.dataset_version_id == dataset_version_id
+    assert plan.status is PlanStatus.AWAITING_CONFIRMATION
+
+
+def test_orchestrator_refuses_a_question_outside_the_tool_catalog() -> None:
+    model = FakePlanModel('{"tool_name":"unsupported","purpose":"CTCAE grade is not available."}')
+
+    with pytest.raises(AgentPlanningError) as raised:
+        _propose(model, question="Which subjects had Grade 3 events?")
+
+    assert raised.value.code is AgentPlanningErrorCode.ANALYSIS_NOT_SUPPORTED
 
 
 @pytest.mark.parametrize(

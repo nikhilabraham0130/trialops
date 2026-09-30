@@ -6,6 +6,7 @@ import {
 } from "./api/analytics";
 import { getStudies, type StudyListResponse } from "./api/studies";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
+import { SevereAeCard } from "./SevereAeCard";
 import "./styles.css";
 
 type LoadStudies = (signal?: AbortSignal) => Promise<StudyListResponse>;
@@ -257,6 +258,7 @@ export function App({
                               </details>
                             </section>
                           )}
+                          <SevereAeCard datasetVersionId={version.id} />
                         </div>
                       );
                     })}

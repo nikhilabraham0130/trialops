@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import type { AnalysisPlan, AnalysisPlanDetails, GovernanceEvaluation, StoredInterpretation } from "./api/agent";
-import type { AltAbnormalityResponse } from "./api/analytics";
+import type { AltAbnormalityResponse, SevereAeIncidenceResponse } from "./api/analytics";
 import type { StudySummary } from "./api/studies";
 
 const studies: StudySummary[] = [{
@@ -63,6 +63,46 @@ const interpretation: StoredInterpretation = {
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("AnalysisWorkspace", () => {
+  it("can propose, confirm, and display the severe-AE tool instead of ALT", async () => {
+    const severePlan: AnalysisPlan = {
+      ...proposal,
+      question: "Which arm had severe adverse events?",
+      tool_call: {
+        name: "compare_severe_ae_incidence",
+        arguments: { dataset_version_id: "dataset-1" },
+      },
+    };
+    const severeResult: SevereAeIncidenceResponse = {
+      dataset_version_id: "dataset-1",
+      method_version: "severe-ae-incidence/1.0",
+      excluded_screen_failure_subjects: 2,
+      population_definition: "All DM subjects grouped by ACTARM.",
+      timing_limitation: "Treatment emergence was not established.",
+      arms: [{
+        arm: "Placebo", subjects_in_arm: 3, subjects_with_severe_ae: 1,
+        severe_ae_event_count: 2, incidence_percent: "33.33",
+      }],
+      evidence: [],
+    };
+    const createPlan = vi.fn().mockResolvedValue(severePlan);
+    const confirmPlan = vi.fn().mockResolvedValue({
+      plan_id: "plan-1", status: "EXECUTED",
+      tool_name: "compare_severe_ae_incidence", result: severeResult,
+    });
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace studies={studies} createPlan={createPlan} confirmPlan={confirmPlan} />);
+
+    await user.type(screen.getByLabelText("Your question"), severePlan.question);
+    await user.click(screen.getByRole("button", { name: "Propose analysis" }));
+    expect(await screen.findByRole("heading", { name: "Severe AE incidence by arm" })).toBeInTheDocument();
+    expect(confirmPlan).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Confirm and calculate" }));
+    expect(await screen.findByRole("region", { name: "Severe AE incidence result" })).toBeInTheDocument();
+    expect(screen.getByText("33.33%")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /ALT above 3/ })).not.toBeInTheDocument();
+  });
+
   it("requires a separate confirmation before running the trusted calculation", async () => {
     const user = userEvent.setup();
     const createPlan = vi.fn().mockResolvedValue(proposal);

@@ -9,6 +9,7 @@ from trialops.analytics.lab_abnormalities import (
     AltAbnormalityResult,
     TimingClassification,
 )
+from trialops.analytics.severe_adverse_events import SevereAeIncidenceResult
 from trialops.validation.findings import FindingSeverity
 
 
@@ -73,5 +74,62 @@ def to_alt_abnormality_response(
         timing_limitation=(
             "A blank baseline flag means not identified as baseline; it does not prove "
             "collection occurred after treatment began."
+        ),
+    )
+
+
+class SevereAeArmResponse(BaseModel):
+    """Distinct-subject incidence and event count for one actual treatment arm."""
+
+    arm: str
+    subjects_in_arm: int
+    subjects_with_severe_ae: int
+    severe_ae_event_count: int
+    incidence_percent: Decimal
+
+
+class SevereAeEvidenceResponse(BaseModel):
+    """Source AE row supporting a severe-event count."""
+
+    source_record_number: int
+    unique_subject_id: str
+    arm: str
+    preferred_term: str
+
+
+class SevereAeIncidenceResponse(BaseModel):
+    """Versioned descriptive result, not a treatment-emergent comparison."""
+
+    dataset_version_id: UUID
+    method_version: str
+    excluded_screen_failure_subjects: int
+    population_definition: str
+    timing_limitation: str
+    arms: tuple[SevereAeArmResponse, ...]
+    evidence: tuple[SevereAeEvidenceResponse, ...]
+
+
+def to_severe_ae_incidence_response(
+    dataset_version_id: UUID, result: SevereAeIncidenceResult
+) -> SevereAeIncidenceResponse:
+    """Expose the trusted counts with explicit population and timing limits."""
+    return SevereAeIncidenceResponse(
+        dataset_version_id=dataset_version_id,
+        method_version=result.method_version,
+        excluded_screen_failure_subjects=result.excluded_screen_failure_subjects,
+        population_definition=(
+            "DM subjects grouped by actual treatment arm (ACTARM), excluding ACTARM = "
+            "Screen Failure; no safety-population flag or exposure requirement has been applied."
+        ),
+        timing_limitation=(
+            "These are recorded severe AEs (AESEV = SEVERE), not confirmed "
+            "treatment-emergent events. Severity is not the seriousness flag (AESER)."
+        ),
+        arms=tuple(
+            SevereAeArmResponse.model_validate(arm, from_attributes=True) for arm in result.arms
+        ),
+        evidence=tuple(
+            SevereAeEvidenceResponse.model_validate(item, from_attributes=True)
+            for item in result.evidence
         ),
     )

@@ -12,19 +12,22 @@ from trialops.agent.interpretation_model import (
 )
 from trialops.agent.model import PlanModelError, PlanModelRequest
 
-_PLAN_SYSTEM_PROMPT = """You select one approved TrialOps analysis tool.
+_PLAN_SYSTEM_PROMPT = """You select one approved TrialOps analysis tool only when it directly
+answers the user's question. If no listed tool can answer it, return tool_name "unsupported".
 Return JSON only, using exactly this shape:
-{"tool_name":"approved tool name","purpose":"brief explanation"}
+{"tool_name":"approved tool name or unsupported","purpose":"brief explanation"}
 Do not add arguments, dataset identifiers, markdown, or unapproved tools.
-The purpose must describe why the selected deterministic tool answers the question.
+Do not equate AESEV = SEVERE with seriousness, CTCAE grades, or treatment emergence.
+The purpose must describe why the selected tool answers the question, or why it is unsupported.
 """
 
 _INTERPRETATION_SYSTEM_PROMPT = """You explain a trusted clinical-analysis result.
 Return JSON only, using exactly this shape:
 {"summary":"restrained explanation","numeric_claims":[{"field":"fact name","value":0}]}
 Use only the supplied aggregate facts. Every number written in the summary must appear in
-numeric_claims with its exact field and value. Do not calculate percentages or make causal,
-diagnostic, treatment-emergent, or statistical-significance claims.
+numeric_claims with its exact field and value. Mention percentages only when they are supplied
+as numeric facts. Do not make causal, diagnostic, treatment-emergent, or statistical-significance
+claims.
 """
 
 
@@ -149,11 +152,11 @@ class DeepSeekModelAdapter:
                 "purpose": request.purpose,
                 "method_version": request.method_version,
                 "numeric_facts": [
-                    {"name": fact.name.value, "value": str(fact.value)}
-                    for fact in request.numeric_facts
+                    {"name": fact.name, "value": str(fact.value)} for fact in request.numeric_facts
                 ],
                 "warnings": request.warnings,
                 "timing_limitation": request.timing_limitation,
+                "group_labels": request.group_labels,
             },
             sort_keys=True,
         )

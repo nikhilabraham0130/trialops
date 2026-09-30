@@ -1,4 +1,4 @@
-import type { AltAbnormalityResponse } from "./analytics";
+import type { AltAbnormalityResponse, SevereAeIncidenceResponse } from "./analytics";
 
 export interface AnalysisPlan {
   id: string;
@@ -8,7 +8,7 @@ export interface AnalysisPlan {
   status: "AWAITING_CONFIRMATION";
   confirmation_required: true;
   tool_call: {
-    name: "calculate_alt_gt_3x_uln";
+    name: "calculate_alt_gt_3x_uln" | "compare_severe_ae_incidence";
     arguments: { dataset_version_id: string };
   };
 }
@@ -25,7 +25,7 @@ export interface StoredInterpretation {
 export interface AnalysisPlanDetails extends Omit<AnalysisPlan, "status" | "confirmation_required"> {
   status: "AWAITING_CONFIRMATION" | "EXECUTING" | "EXECUTED" | "FAILED";
   confirmation_required: boolean;
-  result: AltAbnormalityResponse | null;
+  result: AltAbnormalityResponse | SevereAeIncidenceResponse | null;
   interpretation: StoredInterpretation | null;
   created_at: string;
   executed_at: string | null;
@@ -34,8 +34,8 @@ export interface AnalysisPlanDetails extends Omit<AnalysisPlan, "status" | "conf
 export interface AnalysisExecution {
   plan_id: string;
   status: "EXECUTED";
-  tool_name: "calculate_alt_gt_3x_uln";
-  result: AltAbnormalityResponse;
+  tool_name: "calculate_alt_gt_3x_uln" | "compare_severe_ae_incidence";
+  result: AltAbnormalityResponse | SevereAeIncidenceResponse;
 }
 
 export interface GovernanceEvaluation {

@@ -83,6 +83,7 @@ def test_interpretation_request_sends_only_aggregate_context() -> None:
         assert body["max_tokens"] == 1024
         prompt = json.loads(body["messages"][1]["content"])
         assert prompt == {
+            "group_labels": [],
             "method_version": "alt-gt-3x-uln/1.0",
             "numeric_facts": [{"name": "qualifying_measurement_count", "value": "4"}],
             "purpose": "Explain the deterministic result.",

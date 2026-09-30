@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from trialops.agent.interpretation_contracts import StoredInterpretation
-from trialops.analytics.contracts import AltAbnormalityResponse
+from trialops.analytics.contracts import AltAbnormalityResponse, SevereAeIncidenceResponse
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
 
@@ -17,6 +17,7 @@ class ApprovedToolName(StrEnum):
     """Tool names the current agent is permitted to request."""
 
     CALCULATE_ALT_GT_3X_ULN = "calculate_alt_gt_3x_uln"
+    COMPARE_SEVERE_AE_INCIDENCE = "compare_severe_ae_incidence"
 
 
 class PlanStatus(StrEnum):
@@ -33,7 +34,7 @@ class ModelPlanProposal(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    tool_name: ApprovedToolName
+    tool_name: ApprovedToolName | Literal["unsupported"]
     purpose: NonEmptyText
 
     @field_validator("purpose")
@@ -58,7 +59,7 @@ class ApprovedToolCall(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: Literal[ApprovedToolName.CALCULATE_ALT_GT_3X_ULN]
+    name: ApprovedToolName
     arguments: AltThresholdToolInput
 
 
@@ -83,8 +84,8 @@ class AnalysisExecution(BaseModel):
 
     plan_id: UUID
     status: Literal[PlanStatus.EXECUTED]
-    tool_name: Literal[ApprovedToolName.CALCULATE_ALT_GT_3X_ULN]
-    result: AltAbnormalityResponse
+    tool_name: ApprovedToolName
+    result: AltAbnormalityResponse | SevereAeIncidenceResponse
 
 
 class AnalysisPlanDetails(BaseModel):
@@ -99,7 +100,7 @@ class AnalysisPlanDetails(BaseModel):
     status: PlanStatus
     confirmation_required: bool
     tool_call: ApprovedToolCall
-    result: AltAbnormalityResponse | None
+    result: AltAbnormalityResponse | SevereAeIncidenceResponse | None
     interpretation: StoredInterpretation | None
     created_at: datetime
     executed_at: datetime | None
@@ -123,9 +124,12 @@ def create_analysis_plan(
     """Bind a model proposal to the version selected by trusted application code."""
     if not question.strip():
         raise ValueError("question must contain visible text")
+    tool_name = proposal.tool_name
+    if not isinstance(tool_name, ApprovedToolName):
+        raise ValueError("an unsupported question cannot create an executable plan")
 
     tool_call = ApprovedToolCall(
-        name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+        name=tool_name,
         arguments=AltThresholdToolInput(dataset_version_id=dataset_version_id),
     )
     return AnalysisPlan(

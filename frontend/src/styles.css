@@ -306,6 +306,14 @@ button:focus-visible {
   margin-bottom: 22px;
 }
 
+.severe-ae-card {
+  margin-top: 16px;
+}
+
+.severe-ae-card > .analysis-button {
+  margin-bottom: 16px;
+}
+
 .eyebrow,
 .card-label {
   margin: 0 0 10px;

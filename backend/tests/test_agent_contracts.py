@@ -15,10 +15,10 @@ from trialops.agent.contracts import (
 from trialops.agent.tools import get_approved_tool_specifications
 
 
-def test_catalog_exposes_only_the_implemented_alt_tool() -> None:
+def test_catalog_exposes_only_implemented_alt_and_severe_ae_tools() -> None:
     specifications = get_approved_tool_specifications()
 
-    assert len(specifications) == 1
+    assert len(specifications) == 2
     specification = specifications[0]
     assert specification.name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert specification.requires_confirmation
@@ -27,6 +27,33 @@ def test_catalog_exposes_only_the_implemented_alt_tool() -> None:
     assert specification.input_schema["required"] == ["dataset_version_id"]
     assert specification.input_schema["properties"]["dataset_version_id"]["format"] == "uuid"
     assert specification.input_schema["additionalProperties"] is False
+    severe = specifications[1]
+    assert severe.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    assert severe.requires_confirmation
+    assert "not treatment-emergent" in severe.description
+    assert severe.input_schema["required"] == ["dataset_version_id"]
+
+
+def test_application_preserves_the_selected_severe_ae_tool() -> None:
+    plan = create_analysis_plan(
+        question="Which arm had recorded severe AEs?",
+        dataset_version_id=uuid4(),
+        proposal=ModelPlanProposal(
+            tool_name=ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+            purpose="Count distinct subjects with severe AEs by arm.",
+        ),
+    )
+    assert plan.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+
+
+def test_unsupported_proposal_cannot_become_an_executable_plan() -> None:
+    proposal = ModelPlanProposal(tool_name="unsupported", purpose="No approved tool applies.")
+    with pytest.raises(ValueError, match="unsupported question"):
+        create_analysis_plan(
+            question="What is the CTCAE grade?",
+            dataset_version_id=uuid4(),
+            proposal=proposal,
+        )
 
 
 def test_model_proposal_parses_only_a_known_tool_and_visible_purpose() -> None:

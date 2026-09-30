@@ -17,7 +17,7 @@ from trialops.agent.contracts import (
 )
 from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.agent.models import AgentPlanRecord
-from trialops.analytics.contracts import AltAbnormalityResponse
+from trialops.analytics.contracts import AltAbnormalityResponse, SevereAeIncidenceResponse
 
 
 class AgentPlanQueryErrorCode(StrEnum):
@@ -51,17 +51,22 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
         ) from exc
 
     if (
-        record.tool_name != ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
+        record.tool_name
+        not in {
+            ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+            ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+        }
         or arguments.dataset_version_id != record.dataset_version_id
     ):
         _invalid_stored_plan("The stored analysis plan does not match an approved tool invocation.")
 
     try:
-        result = (
-            AltAbnormalityResponse.model_validate(record.result)
-            if record.result is not None
-            else None
-        )
+        result: AltAbnormalityResponse | SevereAeIncidenceResponse | None = None
+        if record.result is not None:
+            if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
+                result = AltAbnormalityResponse.model_validate(record.result)
+            else:
+                result = SevereAeIncidenceResponse.model_validate(record.result)
     except ValidationError as exc:
         raise AgentPlanQueryError(
             AgentPlanQueryErrorCode.INVALID_STORED_PLAN,
@@ -103,7 +108,7 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
             status=record.status,
             confirmation_required=record.status is PlanStatus.AWAITING_CONFIRMATION,
             tool_call=ApprovedToolCall(
-                name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+                name=record.tool_name,
                 arguments=arguments,
             ),
             result=result,

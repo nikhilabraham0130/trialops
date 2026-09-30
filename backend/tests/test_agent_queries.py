@@ -17,7 +17,11 @@ from trialops.agent.queries import (
     AgentPlanQueryErrorCode,
     get_analysis_plan,
 )
-from trialops.analytics.contracts import AltAbnormalityResponse
+from trialops.analytics.contracts import (
+    AltAbnormalityResponse,
+    SevereAeArmResponse,
+    SevereAeIncidenceResponse,
+)
 
 
 class _FakeSession:
@@ -101,6 +105,34 @@ def test_query_rebuilds_typed_plan_state(
     assert (details.result is not None) is expects_result
     assert details.tool_call.arguments.dataset_version_id == record.dataset_version_id
     assert len(fake.statements) == 1
+
+
+def test_query_rebuilds_severe_ae_plan_with_matching_result() -> None:
+    record = _record(PlanStatus.EXECUTED)
+    record.tool_name = ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    record.result = SevereAeIncidenceResponse(
+        dataset_version_id=record.dataset_version_id,
+        method_version="severe-ae-incidence/1.0",
+        excluded_screen_failure_subjects=0,
+        population_definition="All DM subjects grouped by ACTARM.",
+        timing_limitation="Treatment emergence was not established.",
+        arms=(
+            SevereAeArmResponse(
+                arm="Placebo",
+                subjects_in_arm=3,
+                subjects_with_severe_ae=1,
+                severe_ae_event_count=2,
+                incidence_percent=Decimal("33.33"),
+            ),
+        ),
+        evidence=(),
+    ).model_dump(mode="json")
+
+    details = asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+
+    assert details.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    assert isinstance(details.result, SevereAeIncidenceResponse)
+    assert details.result.arms[0].incidence_percent == Decimal("33.33")
 
 
 def test_query_reports_missing_plan() -> None:

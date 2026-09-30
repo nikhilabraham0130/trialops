@@ -16,6 +16,7 @@ class InterpretationModelRequest:
     numeric_facts: tuple[NumericFact, ...]
     warnings: tuple[str, ...]
     timing_limitation: str
+    group_labels: tuple[str, ...] = ()
 
 
 class InterpretationModelError(RuntimeError):

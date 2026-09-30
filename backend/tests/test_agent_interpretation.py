@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from trialops.agent.fake_interpretation_model import FakeInterpretationModel
 from trialops.agent.interpretation import (
     PROMPT_VERSION,
+    SEVERE_AE_PROMPT_VERSION,
     InterpretationError,
     InterpretationErrorCode,
     build_numeric_facts,
@@ -23,6 +24,8 @@ from trialops.agent.interpretation_contracts import (
 from trialops.agent.interpretation_model import InterpretationModelError
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SevereAeArmResponse,
+    SevereAeIncidenceResponse,
     ValidationFindingResponse,
 )
 from trialops.validation.findings import FindingSeverity
@@ -52,6 +55,26 @@ def _result() -> AltAbnormalityResponse:
     )
 
 
+def _severe_result() -> SevereAeIncidenceResponse:
+    return SevereAeIncidenceResponse(
+        dataset_version_id=UUID("00000000-0000-0000-0000-000000000001"),
+        method_version="severe-ae-incidence/1.0",
+        excluded_screen_failure_subjects=2,
+        population_definition="All DM subjects grouped by ACTARM.",
+        timing_limitation="Treatment emergence was not established.",
+        arms=(
+            SevereAeArmResponse(
+                arm="Placebo",
+                subjects_in_arm=3,
+                subjects_with_severe_ae=1,
+                severe_ae_event_count=2,
+                incidence_percent=Decimal("33.33"),
+            ),
+        ),
+        evidence=(),
+    )
+
+
 VALID_RESPONSE = """{
   "summary": "Among 1,814 eligible ALT measurements, 4 exceeded 3 times ULN across 3 subjects.",
   "numeric_claims": [
@@ -74,6 +97,56 @@ def test_numeric_fact_catalog_uses_only_aggregate_result_fields() -> None:
         NumericFactName.QUALIFYING_MEASUREMENT_COUNT: Decimal(4),
         NumericFactName.SUBJECTS_WITH_QUALIFYING_MEASUREMENT: Decimal(3),
     }
+
+
+def test_severe_ae_interpretation_uses_only_backend_aggregate_counts_and_percentages() -> None:
+    model = FakeInterpretationModel(
+        '{"summary":"In Placebo, 1 of 3 subjects had a severe AE (33.33%), with 2 events.",'
+        '"numeric_claims":['
+        '{"field":"arm_1_subjects_with_severe_ae","value":1},'
+        '{"field":"arm_1_subjects_in_arm","value":3},'
+        '{"field":"arm_1_incidence_percent","value":"33.33"},'
+        '{"field":"arm_1_severe_ae_event_count","value":2}]}'
+    )
+
+    verified = asyncio.run(
+        generate_grounded_interpretation(
+            model,
+            question="Compare recorded severe AEs.",
+            purpose="Summarize by arm.",
+            result=_severe_result(),
+        )
+    )
+
+    assert verified.prompt_version == SEVERE_AE_PROMPT_VERSION
+    request = model.requests[0]
+    assert request.group_labels == ("Placebo",)
+    assert request.warnings == ("All DM subjects grouped by ACTARM.",)
+    assert {fact.name: fact.value for fact in request.numeric_facts} == {
+        "excluded_screen_failure_subjects": Decimal(2),
+        "arm_1_subjects_in_arm": Decimal(3),
+        "arm_1_subjects_with_severe_ae": Decimal(1),
+        "arm_1_severe_ae_event_count": Decimal(2),
+        "arm_1_incidence_percent": Decimal("33.33"),
+    }
+
+
+def test_severe_ae_interpretation_rejects_an_uncomputed_percentage() -> None:
+    model = FakeInterpretationModel(
+        '{"summary":"In Placebo, 20% of subjects had a severe AE.",'
+        '"numeric_claims":[{"field":"arm_1_incidence_percent","value":20}]}'
+    )
+
+    with pytest.raises(InterpretationError) as raised:
+        asyncio.run(
+            generate_grounded_interpretation(
+                model,
+                question="Compare recorded severe AEs.",
+                purpose="Summarize by arm.",
+                result=_severe_result(),
+            )
+        )
+    assert raised.value.code is InterpretationErrorCode.UNGROUNDED_NUMERIC_CLAIM
 
 
 def test_numeric_claim_rejects_nonfinite_value() -> None:

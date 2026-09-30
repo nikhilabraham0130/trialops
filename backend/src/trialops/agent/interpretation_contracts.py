@@ -30,7 +30,7 @@ class NumericFact(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: NumericFactName
+    name: str
     value: Decimal
 
 
@@ -39,7 +39,7 @@ class NumericClaim(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    field: NumericFactName
+    field: str
     value: Decimal
 
 

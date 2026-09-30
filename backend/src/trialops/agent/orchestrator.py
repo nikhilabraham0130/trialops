@@ -16,6 +16,7 @@ class AgentPlanningErrorCode(StrEnum):
     INVALID_QUESTION = "INVALID_QUESTION"
     MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
     INVALID_MODEL_RESPONSE = "INVALID_MODEL_RESPONSE"
+    ANALYSIS_NOT_SUPPORTED = "ANALYSIS_NOT_SUPPORTED"
 
 
 class AgentPlanningError(ValueError):
@@ -59,6 +60,12 @@ async def propose_analysis_plan(
             AgentPlanningErrorCode.INVALID_MODEL_RESPONSE,
             "The planning model returned a response that violates the approved contract.",
         ) from exc
+
+    if proposal.tool_name == "unsupported":
+        raise AgentPlanningError(
+            AgentPlanningErrorCode.ANALYSIS_NOT_SUPPORTED,
+            "The question is not supported by the current approved analysis tools.",
+        )
 
     return create_analysis_plan(
         question=question,

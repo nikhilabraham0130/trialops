@@ -17,8 +17,14 @@ from trialops.agent.contracts import (
     PlanStatus,
 )
 from trialops.agent.models import AgentPlanRecord
-from trialops.analytics.contracts import to_alt_abnormality_response
+from trialops.analytics.contracts import (
+    AltAbnormalityResponse,
+    SevereAeIncidenceResponse,
+    to_alt_abnormality_response,
+    to_severe_ae_incidence_response,
+)
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.validation.alt import DatasetVersionNotFoundError
 
 
@@ -81,7 +87,11 @@ async def execute_confirmed_plan(
         ) from exc
 
     if (
-        record.tool_name != ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
+        record.tool_name
+        not in {
+            ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+            ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+        }
         or arguments.dataset_version_id != record.dataset_version_id
     ):
         await _reject_plan(
@@ -91,7 +101,23 @@ async def execute_confirmed_plan(
         )
 
     try:
-        result = await calculate_stored_alt_gt_3x_uln(session, record.dataset_version_id)
+        structured_result: AltAbnormalityResponse | SevereAeIncidenceResponse
+        if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
+            result = await calculate_stored_alt_gt_3x_uln(session, record.dataset_version_id)
+            structured_result = to_alt_abnormality_response(record.dataset_version_id, result)
+        elif record.tool_name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE:
+            severe_result = await calculate_stored_severe_ae_incidence(
+                session, record.dataset_version_id
+            )
+            structured_result = to_severe_ae_incidence_response(
+                record.dataset_version_id, severe_result
+            )
+        else:
+            await _reject_plan(
+                session,
+                AgentExecutionErrorCode.INVALID_STORED_PLAN,
+                "The stored analysis plan requests an unsupported tool.",
+            )
     except DatasetVersionNotFoundError as exc:
         await session.rollback()
         raise AgentExecutionError(
@@ -99,11 +125,10 @@ async def execute_confirmed_plan(
             "The stored analysis plan references an unavailable dataset version.",
         ) from exc
 
-    structured_result = to_alt_abnormality_response(record.dataset_version_id, result)
     execution = AnalysisExecution(
         plan_id=record.id,
         status=PlanStatus.EXECUTED,
-        tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+        tool_name=record.tool_name,
         result=structured_result,
     )
     record.status = PlanStatus.EXECUTED

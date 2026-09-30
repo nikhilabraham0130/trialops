@@ -190,10 +190,34 @@ source-backed evidence rows. The endpoint is read-only and does not create an
 analysis, approval, or audit record. An unknown dataset-version ID returns a
 controlled `404` response rather than an internal database error.
 
+## Recorded severe adverse events by actual arm
+
+`severe-ae-incidence/1.0` counts each DM subject once in their `ACTARM` group
+when they have at least one AE row with `AESEV = SEVERE`. It reports the number
+of severe AE rows separately, because a subject can have multiple events.
+Subject incidence is the distinct-subject numerator divided by all DM subjects
+in that actual arm, rounded to two decimal places as a percentage. The result
+retains the contributing AE source rows.
+
+Subjects with `ACTARM = Screen Failure` are excluded from treatment-arm
+denominators and reported as a separate exclusion count. On the public pilot
+snapshot this excludes 52 of 306 DM subjects, leaving three actual treatment
+arms. The rule is explicit so screen failures are not presented as a treated
+comparison group.
+
+This is a descriptive analysis of recorded AEs, not a treatment-emergent,
+safety-population, serious-AE, or inferential analysis. Treatment timing and a
+safety-population flag are not established by this method. Its read-only API is:
+
+```text
+GET /dataset-versions/{dataset_version_id}/analytics/severe-ae-incidence
+```
+
 ## Agent control foundation
 
-The initial agent catalog exposes only one implemented capability:
-`calculate_alt_gt_3x_uln`. A language model may propose that tool and provide a
+The agent catalog exposes two implemented capabilities:
+`calculate_alt_gt_3x_uln` and `compare_severe_ae_incidence`. A language model
+may propose one of these tools and provide a
 short, user-visible purpose, but it cannot supply the dataset-version ID. The
 application binds the proposal to the immutable version the user selected.
 
@@ -202,6 +226,8 @@ The resulting `AnalysisPlan` is typed, immutable, and starts in
 version, approved tool call, and the fact that confirmation is required. No
 tool executes during plan creation. Unknown tool names, extra model-generated
 fields, blank purposes, and blank questions are rejected.
+For a question neither tool can answer, the model can propose `unsupported`;
+the API returns `ANALYSIS_NOT_SUPPORTED` without creating an executable plan.
 
 `propose_analysis_plan` is the first orchestrator step. It gives a provider-
 neutral model interface the question and approved catalog, validates the raw
@@ -211,8 +237,9 @@ rejected without executing a tool.
 
 `FakePlanModel` implements that interface without network access or an API key.
 It records exactly what it received and returns configured JSON, making the
-planning workflow deterministic and free of API cost in tests. There is still
-no live LLM call. Tool execution is a separate, explicit confirmation step.
+planning workflow deterministic and free of API cost in tests. With a configured
+DeepSeek key, the live adapter can perform planning. Tool execution remains a
+separate, explicit confirmation step.
 
 The plan-creation boundary is available at:
 
@@ -242,7 +269,7 @@ POST /agent/plans/{plan_id}/confirm
 The request body must be `{ "confirmed": true }`; it does not repeat the tool,
 dataset version, or arguments. TrialOps locks and retrieves the stored plan,
 requires status `AWAITING_CONFIRMATION`, validates its trusted arguments, and
-runs the approved deterministic ALT calculation. The structured result and
+runs the selected approved deterministic ALT or severe-AE calculation. The structured result and
 execution time are stored on the plan before the endpoint returns `EXECUTED`.
 
 The row lock prevents two simultaneous confirmation requests from executing
@@ -263,25 +290,26 @@ the structured deterministic result when execution has completed. Before
 returning the record, TrialOps revalidates the stored arguments and result and
 rejects inconsistent state with `409`; an unknown plan ID returns `404`.
 
-The default application intentionally has no model configured yet, so the
-plan-creation endpoint returns `503` unless a fake or future live adapter is
-explicitly injected. This prevents a demo substitute from being mistaken for
-real AI. Retrieval and confirmation do not require a planning model.
+Without a configured model key, plan creation returns `503` rather than
+pretending that a test fake is real AI. Retrieval and confirmation do not
+require a planning model.
 
 ## Numerically grounded interpretation foundation
 
 After deterministic execution, TrialOps can ask a provider-neutral
 interpretation model to propose a plain-language summary. The model receives
 only the original question, user-visible purpose, method version, aggregate
-numeric facts, warning messages, and timing limitation. It does not receive
+numeric facts, treatment-arm labels when relevant, warning messages, and timing
+limitation. It does not receive
 the dataset UUID or subject-level evidence rows.
 
 The model must return strict JSON containing `summary` and `numeric_claims`.
 Each numeric claim identifies the exact result field it cites, such as
 `qualifying_measurement_count`. Trusted Python code verifies that the declared
 value equals that field and that every number in the prose matches the declared
-claims. Percentages are rejected because this ALT method does not calculate a
-percentage. Unsupported values cause the entire interpretation to be rejected.
+claims. The ALT tool rejects percentages because it does not calculate one;
+the severe-AE tool permits only incidence percentages present in its stored
+result. Unsupported values cause the entire interpretation to be rejected.
 
 An accepted explanation is labeled `NUMERICALLY_VERIFIED` and records the
 prompt version and model identifier for future lineage. This status establishes

@@ -13,6 +13,7 @@ import {
 } from "./api/agent";
 import type { AltAbnormalityResponse } from "./api/analytics";
 import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
+import { SevereAeResult } from "./SevereAeCard";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
 type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing";
@@ -237,9 +238,9 @@ export function AnalysisWorkspace({
         <label htmlFor="safety-question">Your question</label>
         <textarea id="safety-question" rows={3} maxLength={2000} value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Were any ALT measurements above three times the upper limit of normal?" />
+          placeholder="Were any ALT measurements elevated, or which arm had severe AEs?" />
         <div className="form-footer">
-          <span>Currently supports ALT measurements above 3 × upper limit of normal.</span>
+          <span>Supports ALT above 3 × ULN and recorded severe AEs by actual arm.</span>
           <button className="analysis-button" type="submit" disabled={busy || !question.trim() || !selectedVersionId}>
             {step === "planning" ? "Preparing plan..." : "Propose analysis"}
           </button>
@@ -255,7 +256,11 @@ export function AnalysisWorkspace({
             <div className="workspace-section-heading">
               <div>
                 <p className="card-label">Proposed tool</p>
-                <h3 id="plan-title">ALT threshold calculation</h3>
+                <h3 id="plan-title">
+                  {plan.tool_call.name === "calculate_alt_gt_3x_uln"
+                    ? "ALT threshold calculation"
+                    : "Severe AE incidence by arm"}
+                </h3>
               </div>
               <span className="method-version">{plan.tool_call.name}</span>
             </div>
@@ -272,7 +277,9 @@ export function AnalysisWorkspace({
             )}
           </section>
 
-          {plan.result && <ResultPanel result={plan.result} />}
+          {plan.result && ("arms" in plan.result
+            ? <SevereAeResult result={plan.result} />
+            : <ResultPanel result={plan.result} />)}
 
           {plan.status === "EXECUTED" && plan.result && !plan.interpretation && (
             <div className="explanation-action">

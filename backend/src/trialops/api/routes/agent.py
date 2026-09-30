@@ -57,6 +57,7 @@ def _planning_http_error(error: AgentPlanningError) -> HTTPException:
         AgentPlanningErrorCode.INVALID_QUESTION: status.HTTP_422_UNPROCESSABLE_CONTENT,
         AgentPlanningErrorCode.MODEL_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
         AgentPlanningErrorCode.INVALID_MODEL_RESPONSE: status.HTTP_502_BAD_GATEWAY,
+        AgentPlanningErrorCode.ANALYSIS_NOT_SUPPORTED: status.HTTP_422_UNPROCESSABLE_CONTENT,
     }
     return HTTPException(
         status_code=status_by_code[error.code],

@@ -20,7 +20,10 @@ class ToolSpecification(BaseModel):
 
 
 _TOOL_INPUT_MODELS: MappingProxyType[ApprovedToolName, type[BaseModel]] = MappingProxyType(
-    {ApprovedToolName.CALCULATE_ALT_GT_3X_ULN: AltThresholdToolInput}
+    {
+        ApprovedToolName.CALCULATE_ALT_GT_3X_ULN: AltThresholdToolInput,
+        ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE: AltThresholdToolInput,
+    }
 )
 
 _TOOL_DESCRIPTIONS: MappingProxyType[ApprovedToolName, str] = MappingProxyType(
@@ -29,7 +32,13 @@ _TOOL_DESCRIPTIONS: MappingProxyType[ApprovedToolName, str] = MappingProxyType(
             "Calculate stored ALT measurements strictly above three times their upper reference "
             "limit for one immutable dataset version. Report measurements and distinct subjects "
             "separately. Do not describe unflagged measurements as post-baseline."
-        )
+        ),
+        ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE: (
+            "Count distinct subjects with one or more recorded AESEV = SEVERE events by actual "
+            "treatment arm for one dataset version. Report denominators, subject incidence, "
+            "and separate event counts. This is descriptive, not treatment-emergent or serious-AE "
+            "incidence."
+        ),
     }
 )
 

@@ -61,8 +61,17 @@ Specific libraries will be added only when the product requires them.
 
 ## Project status
 
-TrialOps is in the initial foundation and product-design phase. Setup and usage
-instructions will be added as executable components are introduced.
+The local application now imports and stores DM, AE, and LB records from the
+public pilot dataset. Two deterministic analyses are implemented: ALT above
+three times its upper reference limit, and recorded severe-AE subject incidence
+by actual treatment arm. The AI planning workflow can select either approved
+tool, require explicit confirmation, store the result, and request a numerically
+verified explanation. A backend governance checklist reports whether the saved
+analysis is ready for independent review.
+
+This is not a complete governed MVP yet. Independent review, full audit history,
+reproduction, governed text-to-SQL, and a broader clinical tool catalog remain
+to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer
 

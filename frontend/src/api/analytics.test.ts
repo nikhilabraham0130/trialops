@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAltAbnormalities } from "./analytics";
+import { getAltAbnormalities, getSevereAeIncidence } from "./analytics";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -39,6 +39,27 @@ describe("getAltAbnormalities", () => {
 
     await expect(getAltAbnormalities("missing-version")).rejects.toThrow(
       "ALT analytics request failed with status 404.",
+    );
+  });
+});
+
+describe("getSevereAeIncidence", () => {
+  it("requests a version-specific severe-AE result", async () => {
+    const body = { dataset_version_id: "version-1", arms: [], evidence: [] };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getSevereAeIncidence("version-1")).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/dataset-versions/version-1/analytics/severe-ae-incidence",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+  });
+
+  it("rejects a failed severe-AE response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+    await expect(getSevereAeIncidence("missing")).rejects.toThrow(
+      "Severe-AE analytics request failed with status 404.",
     );
   });
 });

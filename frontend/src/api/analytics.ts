@@ -33,6 +33,27 @@ export interface AltAbnormalityResponse {
   timing_limitation: string;
 }
 
+export interface SevereAeIncidenceResponse {
+  dataset_version_id: string;
+  method_version: string;
+  excluded_screen_failure_subjects: number;
+  population_definition: string;
+  timing_limitation: string;
+  arms: {
+    arm: string;
+    subjects_in_arm: number;
+    subjects_with_severe_ae: number;
+    severe_ae_event_count: number;
+    incidence_percent: string;
+  }[];
+  evidence: {
+    source_record_number: number;
+    unique_subject_id: string;
+    arm: string;
+    preferred_term: string;
+  }[];
+}
+
 const apiUrl = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export async function getAltAbnormalities(
@@ -52,4 +73,18 @@ export async function getAltAbnormalities(
   }
 
   return (await response.json()) as AltAbnormalityResponse;
+}
+
+export async function getSevereAeIncidence(
+  datasetVersionId: string,
+  signal?: AbortSignal,
+): Promise<SevereAeIncidenceResponse> {
+  const response = await fetch(
+    `${apiUrl}/dataset-versions/${encodeURIComponent(datasetVersionId)}/analytics/severe-ae-incidence`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(`Severe-AE analytics request failed with status ${response.status}.`);
+  }
+  return (await response.json()) as SevereAeIncidenceResponse;
 }

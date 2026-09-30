@@ -17,6 +17,10 @@ from trialops.agent.execution import (
 )
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.lab_abnormalities import AltAbnormalityResult
+from trialops.analytics.severe_adverse_events import (
+    SevereAeArmResult,
+    SevereAeIncidenceResult,
+)
 from trialops.validation.alt import DatasetVersionNotFoundError
 
 
@@ -105,6 +109,36 @@ def test_confirmation_locks_executes_and_persists_structured_result(
     assert fake.commit_calls == 1
     assert fake.rollback_calls == 0
     assert str(fake.statements[0]).endswith("FOR UPDATE")
+
+
+def test_confirmation_executes_and_persists_selected_severe_ae_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record()
+    record.tool_name = ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    fake = _FakeSession(record)
+
+    async def calculation(
+        _session: AsyncSession, requested_version_id: UUID
+    ) -> SevereAeIncidenceResult:
+        assert requested_version_id == record.dataset_version_id
+        return SevereAeIncidenceResult(
+            method_version="severe-ae-incidence/1.0",
+            excluded_screen_failure_subjects=0,
+            arms=(SevereAeArmResult("Placebo", 3, 1, 2, Decimal("33.33")),),
+            evidence=(),
+        )
+
+    monkeypatch.setattr(
+        "trialops.agent.execution.calculate_stored_severe_ae_incidence", calculation
+    )
+
+    execution = asyncio.run(execute_confirmed_plan(cast(AsyncSession, fake), record.id))
+
+    assert execution.tool_name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    assert execution.result.method_version == "severe-ae-incidence/1.0"
+    assert record.result == execution.result.model_dump(mode="json")
+    assert fake.commit_calls == 1
 
 
 @pytest.mark.parametrize(
