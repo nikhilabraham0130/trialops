@@ -72,7 +72,7 @@ An on-demand reproduction check reruns the deterministic tool against the saved
 dataset version and compares the structured result field by field.
 
 This is not a complete governed MVP yet. Independent review, full audit history,
-persisted reproduction history, governed text-to-SQL, and a broader clinical tool catalog remain
+governed text-to-SQL, and a broader clinical tool catalog remain
 to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer

@@ -25,8 +25,9 @@ statistical truth.
 The workspace calls `POST /agent/plans`, `POST /agent/plans/{id}/confirm`,
 `POST /agent/plans/{id}/interpretation`, `GET /agent/plans/{id}`, and the
 read-only `GET /agent/plans/{id}/governance` checklist. After execution, the
-Reproduce result action calls `POST /agent/plans/{id}/reproduce` and displays
-an exact match or field-level differences without changing the saved analysis.
+Reproduce result action calls `POST /agent/plans/{id}/reproduce`, stores a
+comparison, and displays an exact match or field-level differences. A separate
+history action loads prior checks without changing the saved analysis.
 Recheck governance after
 execution or interpretation because the saved state has changed. A decision of
 `REVIEW_REQUIRED` does not mean approved; independent review is not implemented

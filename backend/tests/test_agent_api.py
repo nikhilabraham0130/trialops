@@ -41,6 +41,7 @@ from trialops.lineage.reproduction import (
     ReproductionComparison,
     ReproductionError,
     ReproductionErrorCode,
+    StoredReproductionRun,
 )
 from trialops.main import create_app
 
@@ -116,6 +117,12 @@ async def _reproduce(application: FastAPI, plan_id: UUID) -> Response:
         return await client.post(f"/agent/plans/{plan_id}/reproduce")
 
 
+async def _reproduction_history(application: FastAPI, plan_id: UUID) -> Response:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.get(f"/agent/plans/{plan_id}/reproductions")
+
+
 def _override_session(application: FastAPI, fake: _FakeSession) -> None:
     async def session_override() -> AsyncIterator[AsyncSession]:
         yield cast(AsyncSession, fake)
@@ -166,6 +173,15 @@ def test_reproduction_endpoint_returns_exact_comparison(monkeypatch: pytest.Monk
         )
 
     monkeypatch.setattr("trialops.api.routes.agent.reproduce_analysis_plan", fake_reproduction)
+
+    async def fake_storage(
+        _session: AsyncSession, comparison: ReproductionComparison
+    ) -> StoredReproductionRun:
+        return StoredReproductionRun(
+            **comparison.model_dump(), id=uuid4(), created_at=datetime.now(UTC)
+        )
+
+    monkeypatch.setattr("trialops.api.routes.agent.store_reproduction_run", fake_storage)
     response = asyncio.run(_reproduce(application, plan_id))
     assert response.status_code == 200
     assert response.json()["status"] == "EXACT_MATCH"
@@ -183,6 +199,36 @@ def test_reproduction_endpoint_rejects_unexecuted_plan(monkeypatch: pytest.Monke
     response = asyncio.run(_reproduce(application, uuid4()))
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "PLAN_NOT_EXECUTED"
+
+
+def test_reproduction_history_endpoint_returns_saved_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+    run_id = uuid4()
+
+    async def fake_history(
+        _session: AsyncSession, _plan_id: UUID
+    ) -> tuple[StoredReproductionRun, ...]:
+        return (
+            StoredReproductionRun(
+                id=run_id,
+                created_at=datetime.now(UTC),
+                plan_id=_plan_id,
+                dataset_version_id=uuid4(),
+                tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+                status="EXACT_MATCH",
+                stored_result_sha256="a" * 64,
+                reproduced_result_sha256="a" * 64,
+                difference_count=0,
+                differences=(),
+                differences_truncated=False,
+            ),
+        )
+
+    monkeypatch.setattr("trialops.api.routes.agent.list_reproduction_runs", fake_history)
+    response = asyncio.run(_reproduction_history(application, uuid4()))
+    assert response.status_code == 200
+    assert response.json()[0]["id"] == str(run_id)
 
 
 def _details(plan_id: UUID, dataset_version_id: UUID) -> AnalysisPlanDetails:

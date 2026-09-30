@@ -30,7 +30,21 @@ def test_metadata_registers_foundational_catalog_tables() -> None:
         "ae_event",
         "lb_result",
         "agent_plan",
+        "reproduction_run",
     }
+
+
+def test_reproduction_history_links_to_plan_and_validates_integrity() -> None:
+    foreign_keys = _constraint_names("reproduction_run", ForeignKeyConstraint)
+    check_constraints = _constraint_names("reproduction_run", CheckConstraint)
+    assert "fk_reproduction_run_plan_id_agent_plan" in foreign_keys
+    assert {
+        "ck_reproduction_run_valid_status",
+        "ck_reproduction_run_nonnegative_difference_count",
+        "ck_reproduction_run_stored_sha256",
+        "ck_reproduction_run_reproduced_sha256",
+        "ck_reproduction_run_differences_array",
+    } <= check_constraints
 
 
 def test_dataset_versions_reference_studies_and_prevent_duplicates() -> None:

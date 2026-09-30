@@ -86,6 +86,25 @@ describe("AnalysisWorkspace", () => {
     expect(screen.getByText("eligible_row_count")).toBeInTheDocument();
   });
 
+  it("loads saved reproduction history after a page refresh", async () => {
+    const executed: AnalysisPlanDetails = {
+      ...proposal, status: "EXECUTED", confirmation_required: false,
+      result, interpretation: null,
+      created_at: "2026-09-30T17:00:00Z", executed_at: "2026-09-30T17:01:00Z",
+    };
+    window.history.replaceState(null, "", "/?plan=plan-1");
+    const loadReproductionHistory = vi.fn().mockResolvedValue([{
+      id: "run-1", created_at: "2026-09-30T17:02:00Z", status: "EXACT_MATCH",
+      difference_count: 0,
+    }]);
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace studies={studies} loadPlan={vi.fn().mockResolvedValue(executed)}
+      loadReproductionHistory={loadReproductionHistory} />);
+    await user.click(await screen.findByRole("button", { name: "View previous checks" }));
+    expect(loadReproductionHistory).toHaveBeenCalledWith("plan-1");
+    expect(await screen.findByRole("list", { name: "Reproduction history" })).toHaveTextContent("EXACT MATCH");
+  });
+
   it("shows the confirmed subject ID and its source-linked result", async () => {
     const subjectPlan: AnalysisPlan = {
       ...proposal,

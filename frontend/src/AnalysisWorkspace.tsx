@@ -6,6 +6,7 @@ import {
   createInterpretation,
   getAnalysisPlan,
   getPlanGovernance,
+  getReproductionHistory,
   reproduceAnalysisPlan,
   type AnalysisPlan,
   type AnalysisPlanDetails,
@@ -19,7 +20,7 @@ import { SevereAeResult } from "./SevereAeCard";
 import { SubjectSafetyResult } from "./SubjectSafetyCard";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
-type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing" | "reproducing";
+type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing" | "reproducing" | "history";
 
 interface AnalysisWorkspaceProps {
   studies: StudyListResponse["studies"];
@@ -29,6 +30,7 @@ interface AnalysisWorkspaceProps {
   interpretPlan?: typeof createInterpretation;
   loadGovernance?: typeof getPlanGovernance;
   reproducePlan?: typeof reproduceAnalysisPlan;
+  loadReproductionHistory?: typeof getReproductionHistory;
 }
 
 function toPlanView(plan: AnalysisPlan): PlanView {
@@ -118,6 +120,7 @@ export function AnalysisWorkspace({
   interpretPlan = createInterpretation,
   loadGovernance = getPlanGovernance,
   reproducePlan = reproduceAnalysisPlan,
+  loadReproductionHistory = getReproductionHistory,
 }: AnalysisWorkspaceProps) {
   const versions: DatasetVersionSummary[] = studies.flatMap((study) => study.dataset_versions);
   const [chosenVersionId, setChosenVersionId] = useState("");
@@ -128,6 +131,7 @@ export function AnalysisWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [governance, setGovernance] = useState<GovernanceEvaluation | null>(null);
   const [reproduction, setReproduction] = useState<ReproductionComparison | null>(null);
+  const [reproductionHistory, setReproductionHistory] = useState<ReproductionComparison[] | null>(null);
 
   useEffect(() => {
     const planId = new URLSearchParams(window.location.search).get("plan");
@@ -143,6 +147,7 @@ export function AnalysisWorkspace({
         setChosenVersionId(saved.dataset_version_id);
         setGovernance(null);
         setReproduction(null);
+        setReproductionHistory(null);
         setError(null);
       })
       .catch((failure: unknown) => {
@@ -167,6 +172,7 @@ export function AnalysisWorkspace({
       setPlan(toPlanView(created));
       setGovernance(null);
       setReproduction(null);
+      setReproductionHistory(null);
       setPlanUrl(created.id);
     } catch (failure) {
       setError(`Plan could not be created: ${errorMessage(failure)}`);
@@ -183,6 +189,7 @@ export function AnalysisWorkspace({
       const execution = await confirmPlan(plan.id);
       setGovernance(null);
       setReproduction(null);
+      setReproductionHistory(null);
       setPlan((current) => current?.id === plan.id ? {
         ...current,
         status: execution.status,
@@ -229,9 +236,24 @@ export function AnalysisWorkspace({
     setStep("reproducing");
     setError(null);
     try {
-      setReproduction(await reproducePlan(plan.id));
+      const saved = await reproducePlan(plan.id);
+      setReproduction(saved);
+      setReproductionHistory((current) => current ? [saved, ...current] : current);
     } catch (failure) {
       setError(`Reproduction could not be completed: ${errorMessage(failure)}`);
+    } finally {
+      setStep("idle");
+    }
+  }
+
+  async function showReproductionHistory() {
+    if (!plan || step !== "idle") return;
+    setStep("history");
+    setError(null);
+    try {
+      setReproductionHistory(await loadReproductionHistory(plan.id));
+    } catch (failure) {
+      setError(`Reproduction history could not be loaded: ${errorMessage(failure)}`);
     } finally {
       setStep("idle");
     }
@@ -352,6 +374,21 @@ export function AnalysisWorkspace({
                   {reproduction.differences_truncated && <p>Only the first differences are shown.</p>}
                 </>
               ) : <p>Rerun the saved tool against its original dataset version and compare every result field.</p>}
+              <button className="analysis-button" type="button" disabled={busy}
+                onClick={() => void showReproductionHistory()}>
+                {step === "history" ? "Loading history..." : "View previous checks"}
+              </button>
+              {reproductionHistory && (
+                <ul className="governance-findings" aria-label="Reproduction history">
+                  {reproductionHistory.length === 0 && <li>No prior reproduction checks.</li>}
+                  {reproductionHistory.map((run) => (
+                    <li key={run.id}>
+                      <strong>{run.status.replaceAll("_", " ")}</strong>
+                      <span>{new Date(run.created_at).toLocaleString()} · {run.difference_count} differing field(s)</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 

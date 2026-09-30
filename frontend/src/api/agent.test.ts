@@ -6,6 +6,7 @@ import {
   createInterpretation,
   getAnalysisPlan,
   getPlanGovernance,
+  getReproductionHistory,
   reproduceAnalysisPlan,
 } from "./agent";
 
@@ -77,6 +78,17 @@ describe("agent API client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8000/agent/plans/plan-1/reproduce",
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("loads saved reproduction history without rerunning a tool", async () => {
+    const body = [{ id: "run-1", status: "EXACT_MATCH" }];
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(getReproductionHistory("plan-1")).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/agent/plans/plan-1/reproductions",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
   });
 

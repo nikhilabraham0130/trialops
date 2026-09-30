@@ -10,6 +10,7 @@ from trialops.datasets.models import (
     SourceArtifactRecord,
 )
 from trialops.db.base import Base
+from trialops.lineage.models import ReproductionRunRecord
 from trialops.studies.models import Study
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "DatasetVersion",
     "DatasetVersionStatus",
     "SourceArtifactRecord",
+    "ReproductionRunRecord",
     "Study",
 ]

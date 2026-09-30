@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
@@ -61,6 +62,13 @@ class ReproductionComparison(BaseModel):
     difference_count: int
     differences: tuple[FieldDifference, ...]
     differences_truncated: bool
+
+
+class StoredReproductionRun(ReproductionComparison):
+    """A comparison retained in PostgreSQL for later inspection."""
+
+    id: UUID
+    created_at: datetime
 
 
 def _canonical_bytes(value: Any) -> bytes:

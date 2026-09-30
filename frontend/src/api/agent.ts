@@ -49,6 +49,8 @@ export interface GovernanceEvaluation {
 }
 
 export interface ReproductionComparison {
+  id: string;
+  created_at: string;
   plan_id: string;
   dataset_version_id: string;
   tool_name: AnalysisExecution["tool_name"];
@@ -119,4 +121,8 @@ export function createInterpretation(planId: string): Promise<StoredInterpretati
 
 export function reproduceAnalysisPlan(planId: string): Promise<ReproductionComparison> {
   return requestJson(`/agent/plans/${encodeURIComponent(planId)}/reproduce`, { method: "POST" });
+}
+
+export function getReproductionHistory(planId: string): Promise<ReproductionComparison[]> {
+  return requestJson(`/agent/plans/${encodeURIComponent(planId)}/reproductions`);
 }

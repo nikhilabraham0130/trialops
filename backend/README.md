@@ -374,8 +374,11 @@ canonical JSON results, the total number of differing fields, and up to 50
 field-level differences. Evidence rows are included in the comparison. AI
 wording is not rerun because it is not deterministic.
 
-This check does not yet persist a reproduction history or change review state.
-An unexecuted plan or unavailable source returns a controlled `409`.
+Each comparison is stored in `reproduction_run` and can be listed later with
+`GET /agent/plans/{plan_id}/reproductions`. The history records the plan,
+timestamp, outcome, hashes, and bounded field differences. The check does not
+change review state. An unexecuted plan or unavailable source returns a
+controlled `409`.
 
 ## Configuration
 
