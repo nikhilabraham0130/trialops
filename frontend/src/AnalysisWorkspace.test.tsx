@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
-import type { AnalysisPlan, AnalysisPlanDetails, StoredInterpretation } from "./api/agent";
+import type { AnalysisPlan, AnalysisPlanDetails, GovernanceEvaluation, StoredInterpretation } from "./api/agent";
 import type { AltAbnormalityResponse } from "./api/analytics";
 import type { StudySummary } from "./api/studies";
 
@@ -115,6 +115,74 @@ describe("AnalysisWorkspace", () => {
     expect(loadPlan).toHaveBeenCalledWith("plan-1", expect.any(AbortSignal));
     expect(screen.getByRole("heading", { name: "ALT above 3 × upper limit of normal" })).toBeInTheDocument();
     expect(screen.getByLabelText("Your question")).toHaveValue(proposal.question);
+  });
+
+  it("shows backend governance checks and refreshes them after interpretation", async () => {
+    window.history.replaceState(null, "", "/?plan=plan-1");
+    const saved: AnalysisPlanDetails = {
+      ...proposal,
+      status: "EXECUTED",
+      confirmation_required: false,
+      result,
+      interpretation: null,
+      created_at: "2026-09-30T16:00:00Z",
+      executed_at: "2026-09-30T16:01:00Z",
+    };
+    const before: GovernanceEvaluation = {
+      decision: "NOT_READY_FOR_REVIEW",
+      findings: [
+        { policy_code: "DETERMINISTIC_RESULT_REQUIRED", status: "PASS", blocking: false,
+          message: "The analysis has a stored deterministic result." },
+        { policy_code: "NUMERIC_GROUNDING_REQUIRED", status: "FAIL", blocking: true,
+          message: "A numerically verified AI interpretation is required before review." },
+      ],
+    };
+    const after: GovernanceEvaluation = {
+      decision: "REVIEW_REQUIRED",
+      findings: [
+        { policy_code: "NUMERIC_GROUNDING_REQUIRED", status: "PASS", blocking: false,
+          message: "The AI interpretation passed numeric grounding verification." },
+        { policy_code: "INDEPENDENT_REVIEW_REQUIRED", status: "FAIL", blocking: true,
+          message: "Independent reviewer approval is required." },
+      ],
+    };
+    const loadGovernance = vi.fn().mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace studies={studies} loadPlan={vi.fn().mockResolvedValue(saved)}
+      interpretPlan={vi.fn().mockResolvedValue(interpretation)} loadGovernance={loadGovernance} />);
+
+    await user.click(await screen.findByRole("button", { name: "Check current status" }));
+    expect(await screen.findByText("Not ready for independent review.")).toBeInTheDocument();
+    expect(screen.getByText(before.findings[1].message)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Generate explanation" }));
+    expect(await screen.findByText(interpretation.summary)).toBeInTheDocument();
+    expect(screen.queryByText("Not ready for independent review.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Check current status" }));
+    expect(await screen.findByText("Ready for independent review, but not approved.")).toBeInTheDocument();
+    expect(screen.getByText(after.findings[1].message)).toBeInTheDocument();
+    expect(loadGovernance).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports governance lookup errors without hiding the stored result", async () => {
+    window.history.replaceState(null, "", "/?plan=plan-1");
+    const saved: AnalysisPlanDetails = {
+      ...proposal,
+      status: "EXECUTED",
+      confirmation_required: false,
+      result,
+      interpretation: null,
+      created_at: "2026-09-30T16:00:00Z",
+      executed_at: "2026-09-30T16:01:00Z",
+    };
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace studies={studies} loadPlan={vi.fn().mockResolvedValue(saved)}
+      loadGovernance={vi.fn().mockRejectedValue(new Error("The saved plan could not be read."))} />);
+
+    await user.click(await screen.findByRole("button", { name: "Check current status" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The saved plan could not be read.");
+    expect(screen.getByRole("heading", { name: /ALT above 3/ })).toBeInTheDocument();
   });
 
   it("keeps the calculation visible when interpretation generation fails", async () => {

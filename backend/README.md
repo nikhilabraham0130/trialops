@@ -308,6 +308,17 @@ the same adapter supplies planning and interpretation responses. Invalid or
 numerically unsupported model output returns `502` and is not saved. An
 ineligible, changed, or already interpreted plan returns `409`.
 
+## Current governance checks
+
+`GET /agent/plans/{plan_id}/governance` reads the latest saved plan and applies
+deterministic rules. It reports whether a stored calculation exists, whether an
+AI explanation passed numeric grounding, and whether independent review is still
+required. `NOT_READY_FOR_REVIEW` means a prerequisite is missing;
+`REVIEW_REQUIRED` means those prerequisites pass, not that anyone has approved
+the analysis. The endpoint is read-only and does not call the AI provider or
+store a review decision. Unknown plans return `404`; inconsistent saved plans
+return `409`.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`

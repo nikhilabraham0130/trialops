@@ -93,6 +93,12 @@ async def _get_plan(application: FastAPI, plan_id: UUID) -> Response:
         return await client.get(f"/agent/plans/{plan_id}")
 
 
+async def _get_governance(application: FastAPI, plan_id: UUID) -> Response:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.get(f"/agent/plans/{plan_id}/governance")
+
+
 async def _interpret(application: FastAPI, plan_id: UUID) -> Response:
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -401,6 +407,75 @@ def test_retrieval_endpoint_maps_safe_query_errors(
         "code": code.value,
         "message": "Safe explanation.",
     }
+
+
+@pytest.mark.parametrize(
+    ("has_result", "has_interpretation", "expected_decision", "expected_statuses"),
+    [
+        (False, False, "NOT_READY_FOR_REVIEW", ["FAIL", "FAIL", "FAIL"]),
+        (True, False, "NOT_READY_FOR_REVIEW", ["PASS", "FAIL", "FAIL"]),
+        (True, True, "REVIEW_REQUIRED", ["PASS", "PASS", "FAIL"]),
+    ],
+)
+def test_governance_endpoint_evaluates_latest_stored_plan(
+    monkeypatch: pytest.MonkeyPatch,
+    has_result: bool,
+    has_interpretation: bool,
+    expected_decision: str,
+    expected_statuses: list[str],
+) -> None:
+    plan_id = uuid4()
+    version_id = uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+    stored = _details(plan_id, version_id)
+    if has_result:
+        stored = stored.model_copy(
+            update={
+                "status": PlanStatus.EXECUTED,
+                "result": _execution(plan_id, version_id).result,
+                "interpretation": _stored_interpretation() if has_interpretation else None,
+            }
+        )
+
+    async def retrieve(_session: AsyncSession, requested_plan_id: UUID) -> AnalysisPlanDetails:
+        assert requested_plan_id == plan_id
+        return stored
+
+    monkeypatch.setattr("trialops.api.routes.agent.get_analysis_plan", retrieve)
+
+    response = asyncio.run(_get_governance(application, plan_id))
+
+    assert response.status_code == 200
+    assert response.json()["decision"] == expected_decision
+    assert [finding["status"] for finding in response.json()["findings"]] == expected_statuses
+    assert response.json()["findings"][-1]["policy_code"] == "INDEPENDENT_REVIEW_REQUIRED"
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_status"),
+    [
+        (AgentPlanQueryErrorCode.PLAN_NOT_FOUND, 404),
+        (AgentPlanQueryErrorCode.INVALID_STORED_PLAN, 409),
+    ],
+)
+def test_governance_endpoint_reuses_safe_plan_lookup_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    code: AgentPlanQueryErrorCode,
+    expected_status: int,
+) -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+
+    async def reject(_session: AsyncSession, _plan_id: UUID) -> AnalysisPlanDetails:
+        raise AgentPlanQueryError(code, "Safe explanation.")
+
+    monkeypatch.setattr("trialops.api.routes.agent.get_analysis_plan", reject)
+
+    response = asyncio.run(_get_governance(application, uuid4()))
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"] == {"code": code.value, "message": "Safe explanation."}
 
 
 def test_interpretation_endpoint_stores_verified_explanation(

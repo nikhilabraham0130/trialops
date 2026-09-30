@@ -32,6 +32,8 @@ from trialops.agent.queries import (
 from trialops.agent.storage import AgentPlanStorageError, store_analysis_plan
 from trialops.api.dependencies import DatabaseSession, InterpretationProvider, PlanningModel
 from trialops.datasets.models import DatasetVersion
+from trialops.governance.contracts import GovernanceEvaluation
+from trialops.governance.policies import evaluate_analysis_governance
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -135,6 +137,32 @@ async def read_plan(plan_id: UUID, session: DatabaseSession) -> AnalysisPlanDeta
             status_code=status_code,
             detail={"code": exc.code.value, "message": str(exc)},
         ) from exc
+
+
+@router.get(
+    "/plans/{plan_id}/governance",
+    response_model=GovernanceEvaluation,
+    summary="Evaluate the current governance state of a stored plan",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan not found"},
+        status.HTTP_409_CONFLICT: {"description": "Stored plan is inconsistent"},
+    },
+)
+async def read_plan_governance(plan_id: UUID, session: DatabaseSession) -> GovernanceEvaluation:
+    """Apply deterministic policy rules to the latest persisted plan state."""
+    try:
+        plan = await get_analysis_plan(session, plan_id)
+    except AgentPlanQueryError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if exc.code is AgentPlanQueryErrorCode.PLAN_NOT_FOUND
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
+    return evaluate_analysis_governance(plan)
 
 
 @router.post(

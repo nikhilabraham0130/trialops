@@ -246,6 +246,56 @@ button:focus-visible {
   background: #f8f8fc;
 }
 
+.governance-panel {
+  border: 1px solid #d5e4db;
+  border-radius: 14px;
+  padding: 22px;
+  background: #fff;
+}
+
+.governance-panel h3 {
+  margin: 0;
+  color: #173b31;
+  font-family: "Manrope", sans-serif;
+  font-size: 1.12rem;
+}
+
+.governance-panel > p {
+  color: #42564d;
+  line-height: 1.6;
+}
+
+.governance-decision {
+  font-weight: 700;
+}
+
+.governance-findings {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.governance-findings li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  color: #42564d;
+}
+
+.policy-pass {
+  color: #287151;
+}
+
+.policy-fail {
+  color: #a14b2b;
+}
+
+.governance-note {
+  font-size: 0.8rem;
+}
+
 .interpretation-footnote {
   border-top: 1px solid #e1e2ef;
   padding-top: 12px;
@@ -626,5 +676,10 @@ td {
 
   .workspace-stage {
     align-self: flex-start;
+  }
+
+  .governance-findings li {
+    flex-direction: column;
+    gap: 2px;
   }
 }

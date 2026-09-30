@@ -5,15 +5,17 @@ import {
   createAnalysisPlan,
   createInterpretation,
   getAnalysisPlan,
+  getPlanGovernance,
   type AnalysisPlan,
   type AnalysisPlanDetails,
+  type GovernanceEvaluation,
   type StoredInterpretation,
 } from "./api/agent";
 import type { AltAbnormalityResponse } from "./api/analytics";
 import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
-type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting";
+type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing";
 
 interface AnalysisWorkspaceProps {
   studies: StudyListResponse["studies"];
@@ -21,6 +23,7 @@ interface AnalysisWorkspaceProps {
   loadPlan?: typeof getAnalysisPlan;
   confirmPlan?: typeof confirmAnalysisPlan;
   interpretPlan?: typeof createInterpretation;
+  loadGovernance?: typeof getPlanGovernance;
 }
 
 function toPlanView(plan: AnalysisPlan): PlanView {
@@ -108,6 +111,7 @@ export function AnalysisWorkspace({
   loadPlan = getAnalysisPlan,
   confirmPlan = confirmAnalysisPlan,
   interpretPlan = createInterpretation,
+  loadGovernance = getPlanGovernance,
 }: AnalysisWorkspaceProps) {
   const versions: DatasetVersionSummary[] = studies.flatMap((study) => study.dataset_versions);
   const [chosenVersionId, setChosenVersionId] = useState("");
@@ -116,6 +120,7 @@ export function AnalysisWorkspace({
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [step, setStep] = useState<WorkflowStep>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [governance, setGovernance] = useState<GovernanceEvaluation | null>(null);
 
   useEffect(() => {
     const planId = new URLSearchParams(window.location.search).get("plan");
@@ -129,6 +134,7 @@ export function AnalysisWorkspace({
         setPlan(saved);
         setQuestion(saved.question);
         setChosenVersionId(saved.dataset_version_id);
+        setGovernance(null);
         setError(null);
       })
       .catch((failure: unknown) => {
@@ -151,6 +157,7 @@ export function AnalysisWorkspace({
     try {
       const created = await createPlan(question.trim(), selectedVersionId);
       setPlan(toPlanView(created));
+      setGovernance(null);
       setPlanUrl(created.id);
     } catch (failure) {
       setError(`Plan could not be created: ${errorMessage(failure)}`);
@@ -165,6 +172,7 @@ export function AnalysisWorkspace({
     setError(null);
     try {
       const execution = await confirmPlan(plan.id);
+      setGovernance(null);
       setPlan((current) => current?.id === plan.id ? {
         ...current,
         status: execution.status,
@@ -184,9 +192,23 @@ export function AnalysisWorkspace({
     setError(null);
     try {
       const interpretation = await interpretPlan(plan.id);
+      setGovernance(null);
       setPlan((current) => current?.id === plan.id ? { ...current, interpretation } : current);
     } catch (failure) {
       setError(`Interpretation could not be created: ${errorMessage(failure)}`);
+    } finally {
+      setStep("idle");
+    }
+  }
+
+  async function checkGovernance() {
+    if (!plan || step !== "idle") return;
+    setStep("governing");
+    setError(null);
+    try {
+      setGovernance(await loadGovernance(plan.id));
+    } catch (failure) {
+      setError(`Governance checks could not be loaded: ${errorMessage(failure)}`);
     } finally {
       setStep("idle");
     }
@@ -261,6 +283,37 @@ export function AnalysisWorkspace({
             </div>
           )}
           {plan.interpretation && <InterpretationPanel interpretation={plan.interpretation} />}
+
+          <section className="governance-panel" aria-labelledby="governance-title">
+            <div className="workspace-section-heading">
+              <div>
+                <p className="card-label">Deterministic policy checks</p>
+                <h3 id="governance-title">Governance</h3>
+              </div>
+              <button className="analysis-button" type="button" disabled={busy}
+                onClick={() => void checkGovernance()}>
+                {step === "governing" ? "Checking..." : "Check current status"}
+              </button>
+            </div>
+            {governance ? (
+              <>
+                <p className="governance-decision">
+                  {governance.decision === "REVIEW_REQUIRED"
+                    ? "Ready for independent review, but not approved."
+                    : "Not ready for independent review."}
+                </p>
+                <ul className="governance-findings">{governance.findings.map((finding) => (
+                  <li key={finding.policy_code}>
+                    <strong className={finding.status === "PASS" ? "policy-pass" : "policy-fail"}>
+                      {finding.status}
+                    </strong>
+                    <span>{finding.message}</span>
+                  </li>
+                ))}</ul>
+              </>
+            ) : <p>Check the saved plan against the backend rules for calculation, grounding, and review.</p>}
+            <p className="governance-note">Independent review is not available in this demo yet.</p>
+          </section>
         </div>
       )}
     </section>

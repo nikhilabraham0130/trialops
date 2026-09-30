@@ -38,6 +38,16 @@ export interface AnalysisExecution {
   result: AltAbnormalityResponse;
 }
 
+export interface GovernanceEvaluation {
+  decision: "NOT_READY_FOR_REVIEW" | "REVIEW_REQUIRED";
+  findings: {
+    policy_code: "DETERMINISTIC_RESULT_REQUIRED" | "NUMERIC_GROUNDING_REQUIRED" | "INDEPENDENT_REVIEW_REQUIRED";
+    status: "PASS" | "FAIL";
+    blocking: boolean;
+    message: string;
+  }[];
+}
+
 const apiUrl = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -76,6 +86,10 @@ export function createAnalysisPlan(question: string, datasetVersionId: string): 
 
 export function getAnalysisPlan(planId: string, signal?: AbortSignal): Promise<AnalysisPlanDetails> {
   return requestJson(`/agent/plans/${encodeURIComponent(planId)}`, { signal });
+}
+
+export function getPlanGovernance(planId: string): Promise<GovernanceEvaluation> {
+  return requestJson(`/agent/plans/${encodeURIComponent(planId)}/governance`);
 }
 
 export function confirmAnalysisPlan(planId: string): Promise<AnalysisExecution> {

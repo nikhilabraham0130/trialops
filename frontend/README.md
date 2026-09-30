@@ -18,7 +18,11 @@ tested result and prevents presentation code from becoming a second source of
 statistical truth.
 
 The workspace calls `POST /agent/plans`, `POST /agent/plans/{id}/confirm`,
-`POST /agent/plans/{id}/interpretation`, and `GET /agent/plans/{id}`. Planning
+`POST /agent/plans/{id}/interpretation`, `GET /agent/plans/{id}`, and the
+read-only `GET /agent/plans/{id}/governance` checklist. Recheck governance after
+execution or interpretation because the saved state has changed. A decision of
+`REVIEW_REQUIRED` does not mean approved; independent review is not implemented
+in the demo yet. Planning
 and explanation require a configured AI provider; calculation and saved plan
 retrieval use the stored backend state. If the provider is unavailable, the page
 shows the backend error and leaves any completed calculation visible.

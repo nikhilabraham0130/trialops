@@ -5,6 +5,7 @@ import {
   createAnalysisPlan,
   createInterpretation,
   getAnalysisPlan,
+  getPlanGovernance,
 } from "./agent";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -51,6 +52,18 @@ describe("agent API client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2,
       "http://127.0.0.1:8000/agent/plans/plan-1/interpretation",
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("loads governance from the saved plan's read-only endpoint", async () => {
+    const evaluation = { decision: "NOT_READY_FOR_REVIEW", findings: [] };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(evaluation), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getPlanGovernance("plan-1")).resolves.toEqual(evaluation);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/agent/plans/plan-1/governance",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
   });
 
