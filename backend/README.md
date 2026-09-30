@@ -364,6 +364,19 @@ the analysis. The endpoint is read-only and does not call the AI provider or
 store a review decision. Unknown plans return `404`; inconsistent saved plans
 return `409`.
 
+## On-demand reproduction
+
+`POST /agent/plans/{plan_id}/reproduce` rereads a completed saved plan, reruns
+its approved deterministic tool against the plan's original dataset version
+and arguments, and compares the newly calculated structured result with the
+stored result. It reports `EXACT_MATCH` or `MISMATCH`, SHA-256 hashes of both
+canonical JSON results, the total number of differing fields, and up to 50
+field-level differences. Evidence rows are included in the comparison. AI
+wording is not rerun because it is not deterministic.
+
+This check does not yet persist a reproduction history or change review state.
+An unexecuted plan or unavailable source returns a controlled `409`.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`

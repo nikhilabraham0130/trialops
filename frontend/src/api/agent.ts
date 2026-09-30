@@ -48,6 +48,18 @@ export interface GovernanceEvaluation {
   }[];
 }
 
+export interface ReproductionComparison {
+  plan_id: string;
+  dataset_version_id: string;
+  tool_name: AnalysisExecution["tool_name"];
+  status: "EXACT_MATCH" | "MISMATCH";
+  stored_result_sha256: string;
+  reproduced_result_sha256: string;
+  difference_count: number;
+  differences: { path: string; stored: unknown; reproduced: unknown }[];
+  differences_truncated: boolean;
+}
+
 const apiUrl = (import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -103,4 +115,8 @@ export function createInterpretation(planId: string): Promise<StoredInterpretati
   return requestJson(`/agent/plans/${encodeURIComponent(planId)}/interpretation`, {
     method: "POST",
   });
+}
+
+export function reproduceAnalysisPlan(planId: string): Promise<ReproductionComparison> {
+  return requestJson(`/agent/plans/${encodeURIComponent(planId)}/reproduce`, { method: "POST" });
 }

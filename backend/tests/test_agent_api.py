@@ -37,6 +37,11 @@ from trialops.analytics.contracts import AltAbnormalityResponse
 from trialops.api.dependencies import get_database_session
 from trialops.api.routes.agent import router as agent_router
 from trialops.core.config import RuntimeEnvironment, Settings
+from trialops.lineage.reproduction import (
+    ReproductionComparison,
+    ReproductionError,
+    ReproductionErrorCode,
+)
 from trialops.main import create_app
 
 VALID_RESPONSE = (
@@ -105,6 +110,12 @@ async def _interpret(application: FastAPI, plan_id: UUID) -> Response:
         return await client.post(f"/agent/plans/{plan_id}/interpretation")
 
 
+async def _reproduce(application: FastAPI, plan_id: UUID) -> Response:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.post(f"/agent/plans/{plan_id}/reproduce")
+
+
 def _override_session(application: FastAPI, fake: _FakeSession) -> None:
     async def session_override() -> AsyncIterator[AsyncSession]:
         yield cast(AsyncSession, fake)
@@ -131,6 +142,47 @@ def _execution(plan_id: UUID, dataset_version_id: UUID) -> AnalysisExecution:
             timing_limitation="A blank baseline flag does not prove post-treatment timing.",
         ),
     )
+
+
+def test_reproduction_endpoint_returns_exact_comparison(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan_id, version_id = uuid4(), uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+
+    async def fake_reproduction(
+        _session: AsyncSession, requested_id: UUID
+    ) -> ReproductionComparison:
+        assert requested_id == plan_id
+        return ReproductionComparison(
+            plan_id=plan_id,
+            dataset_version_id=version_id,
+            tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+            status="EXACT_MATCH",
+            stored_result_sha256="a" * 64,
+            reproduced_result_sha256="a" * 64,
+            difference_count=0,
+            differences=(),
+            differences_truncated=False,
+        )
+
+    monkeypatch.setattr("trialops.api.routes.agent.reproduce_analysis_plan", fake_reproduction)
+    response = asyncio.run(_reproduce(application, plan_id))
+    assert response.status_code == 200
+    assert response.json()["status"] == "EXACT_MATCH"
+    assert response.json()["difference_count"] == 0
+
+
+def test_reproduction_endpoint_rejects_unexecuted_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    _override_session(application, _FakeSession(None))
+
+    async def unexecuted(_session: AsyncSession, _plan_id: UUID) -> ReproductionComparison:
+        raise ReproductionError(ReproductionErrorCode.PLAN_NOT_EXECUTED, "Run the plan first.")
+
+    monkeypatch.setattr("trialops.api.routes.agent.reproduce_analysis_plan", unexecuted)
+    response = asyncio.run(_reproduce(application, uuid4()))
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "PLAN_NOT_EXECUTED"
 
 
 def _details(plan_id: UUID, dataset_version_id: UUID) -> AnalysisPlanDetails:

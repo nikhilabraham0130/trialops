@@ -6,9 +6,11 @@ import {
   createInterpretation,
   getAnalysisPlan,
   getPlanGovernance,
+  reproduceAnalysisPlan,
   type AnalysisPlan,
   type AnalysisPlanDetails,
   type GovernanceEvaluation,
+  type ReproductionComparison,
   type StoredInterpretation,
 } from "./api/agent";
 import type { AltAbnormalityResponse } from "./api/analytics";
@@ -17,7 +19,7 @@ import { SevereAeResult } from "./SevereAeCard";
 import { SubjectSafetyResult } from "./SubjectSafetyCard";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
-type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing";
+type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing" | "reproducing";
 
 interface AnalysisWorkspaceProps {
   studies: StudyListResponse["studies"];
@@ -26,6 +28,7 @@ interface AnalysisWorkspaceProps {
   confirmPlan?: typeof confirmAnalysisPlan;
   interpretPlan?: typeof createInterpretation;
   loadGovernance?: typeof getPlanGovernance;
+  reproducePlan?: typeof reproduceAnalysisPlan;
 }
 
 function toPlanView(plan: AnalysisPlan): PlanView {
@@ -114,6 +117,7 @@ export function AnalysisWorkspace({
   confirmPlan = confirmAnalysisPlan,
   interpretPlan = createInterpretation,
   loadGovernance = getPlanGovernance,
+  reproducePlan = reproduceAnalysisPlan,
 }: AnalysisWorkspaceProps) {
   const versions: DatasetVersionSummary[] = studies.flatMap((study) => study.dataset_versions);
   const [chosenVersionId, setChosenVersionId] = useState("");
@@ -123,6 +127,7 @@ export function AnalysisWorkspace({
   const [step, setStep] = useState<WorkflowStep>("idle");
   const [error, setError] = useState<string | null>(null);
   const [governance, setGovernance] = useState<GovernanceEvaluation | null>(null);
+  const [reproduction, setReproduction] = useState<ReproductionComparison | null>(null);
 
   useEffect(() => {
     const planId = new URLSearchParams(window.location.search).get("plan");
@@ -137,6 +142,7 @@ export function AnalysisWorkspace({
         setQuestion(saved.question);
         setChosenVersionId(saved.dataset_version_id);
         setGovernance(null);
+        setReproduction(null);
         setError(null);
       })
       .catch((failure: unknown) => {
@@ -160,6 +166,7 @@ export function AnalysisWorkspace({
       const created = await createPlan(question.trim(), selectedVersionId);
       setPlan(toPlanView(created));
       setGovernance(null);
+      setReproduction(null);
       setPlanUrl(created.id);
     } catch (failure) {
       setError(`Plan could not be created: ${errorMessage(failure)}`);
@@ -175,6 +182,7 @@ export function AnalysisWorkspace({
     try {
       const execution = await confirmPlan(plan.id);
       setGovernance(null);
+      setReproduction(null);
       setPlan((current) => current?.id === plan.id ? {
         ...current,
         status: execution.status,
@@ -211,6 +219,19 @@ export function AnalysisWorkspace({
       setGovernance(await loadGovernance(plan.id));
     } catch (failure) {
       setError(`Governance checks could not be loaded: ${errorMessage(failure)}`);
+    } finally {
+      setStep("idle");
+    }
+  }
+
+  async function checkReproduction() {
+    if (!plan || plan.status !== "EXECUTED" || step !== "idle") return;
+    setStep("reproducing");
+    setError(null);
+    try {
+      setReproduction(await reproducePlan(plan.id));
+    } catch (failure) {
+      setError(`Reproduction could not be completed: ${errorMessage(failure)}`);
     } finally {
       setStep("idle");
     }
@@ -298,6 +319,41 @@ export function AnalysisWorkspace({
             </div>
           )}
           {plan.interpretation && <InterpretationPanel interpretation={plan.interpretation} />}
+
+          {plan.status === "EXECUTED" && plan.result && (
+            <section className="governance-panel" aria-label="Reproduction check">
+              <div className="workspace-section-heading">
+                <div>
+                  <p className="card-label">Deterministic rerun</p>
+                  <h3>Reproduction</h3>
+                </div>
+                <button className="analysis-button" type="button" disabled={busy}
+                  onClick={() => void checkReproduction()}>
+                  {step === "reproducing" ? "Comparing..." : "Reproduce result"}
+                </button>
+              </div>
+              {reproduction ? (
+                <>
+                  <p className="governance-decision">
+                    {reproduction.status === "EXACT_MATCH"
+                      ? "Exact match: the rerun produced the same structured result."
+                      : `Mismatch: ${reproduction.difference_count} field(s) changed.`}
+                  </p>
+                  <p className="timing-note">Stored SHA-256: <code>{reproduction.stored_result_sha256}</code></p>
+                  <p className="timing-note">Rerun SHA-256: <code>{reproduction.reproduced_result_sha256}</code></p>
+                  {reproduction.differences.length > 0 && (
+                    <ul className="governance-findings">{reproduction.differences.map((difference) => (
+                      <li key={difference.path}>
+                        <strong>{difference.path}</strong>
+                        <span>Stored: {JSON.stringify(difference.stored)}; rerun: {JSON.stringify(difference.reproduced)}</span>
+                      </li>
+                    ))}</ul>
+                  )}
+                  {reproduction.differences_truncated && <p>Only the first differences are shown.</p>}
+                </>
+              ) : <p>Rerun the saved tool against its original dataset version and compare every result field.</p>}
+            </section>
+          )}
 
           <section className="governance-panel" aria-labelledby="governance-title">
             <div className="workspace-section-heading">

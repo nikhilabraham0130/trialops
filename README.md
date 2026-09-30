@@ -66,12 +66,13 @@ public pilot dataset. It offers deterministic ALT threshold analysis, recorded
 severe-AE subject incidence by actual treatment arm, and a source-linked
 subject-level safety view across DM, AE, and LB. The AI planning workflow can
 select any of these three approved tools, require explicit confirmation, store
-the result, and request a numerically
-verified explanation. A backend governance checklist reports whether the saved
-analysis is ready for independent review.
+the result, and request a numerically verified explanation. A backend governance
+checklist reports whether the saved analysis is ready for independent review.
+An on-demand reproduction check reruns the deterministic tool against the saved
+dataset version and compares the structured result field by field.
 
 This is not a complete governed MVP yet. Independent review, full audit history,
-reproduction, governed text-to-SQL, and a broader clinical tool catalog remain
+persisted reproduction history, governed text-to-SQL, and a broader clinical tool catalog remain
 to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer

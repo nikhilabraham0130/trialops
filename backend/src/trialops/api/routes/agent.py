@@ -34,6 +34,11 @@ from trialops.api.dependencies import DatabaseSession, InterpretationProvider, P
 from trialops.datasets.models import DatasetVersion
 from trialops.governance.contracts import GovernanceEvaluation
 from trialops.governance.policies import evaluate_analysis_governance
+from trialops.lineage.reproduction import (
+    ReproductionComparison,
+    ReproductionError,
+    reproduce_analysis_plan,
+)
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -229,5 +234,35 @@ async def create_interpretation(
             status_code = status.HTTP_409_CONFLICT
         raise HTTPException(
             status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
+
+
+@router.post(
+    "/plans/{plan_id}/reproduce",
+    response_model=ReproductionComparison,
+    summary="Rerun and compare a saved deterministic analysis",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan not found"},
+        status.HTTP_409_CONFLICT: {"description": "Plan or source cannot be reproduced"},
+    },
+)
+async def reproduce_plan(plan_id: UUID, session: DatabaseSession) -> ReproductionComparison:
+    """Compare a new calculation with the saved structured result, without AI."""
+    try:
+        return await reproduce_analysis_plan(session, plan_id)
+    except AgentPlanQueryError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if exc.code is AgentPlanQueryErrorCode.PLAN_NOT_FOUND
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
+    except ReproductionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail={"code": exc.code.value, "message": str(exc)},
         ) from exc

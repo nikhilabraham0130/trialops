@@ -63,6 +63,29 @@ const interpretation: StoredInterpretation = {
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("AnalysisWorkspace", () => {
+  it("shows a field-by-field reproduction mismatch for an executed plan", async () => {
+    const executed: AnalysisPlanDetails = {
+      ...proposal, status: "EXECUTED", confirmation_required: false,
+      result, interpretation: null,
+      created_at: "2026-09-30T17:00:00Z", executed_at: "2026-09-30T17:01:00Z",
+    };
+    window.history.replaceState(null, "", "/?plan=plan-1");
+    const reproducePlan = vi.fn().mockResolvedValue({
+      plan_id: "plan-1", dataset_version_id: "dataset-1", tool_name: "calculate_alt_gt_3x_uln",
+      status: "MISMATCH", stored_result_sha256: "a".repeat(64),
+      reproduced_result_sha256: "b".repeat(64), difference_count: 1,
+      differences: [{ path: "eligible_row_count", stored: 1814, reproduced: 1815 }],
+      differences_truncated: false,
+    });
+    const user = userEvent.setup();
+    render(<AnalysisWorkspace studies={studies} loadPlan={vi.fn().mockResolvedValue(executed)}
+      reproducePlan={reproducePlan} />);
+    await user.click(await screen.findByRole("button", { name: "Reproduce result" }));
+    expect(reproducePlan).toHaveBeenCalledWith("plan-1");
+    expect(await screen.findByText("Mismatch: 1 field(s) changed.")).toBeInTheDocument();
+    expect(screen.getByText("eligible_row_count")).toBeInTheDocument();
+  });
+
   it("shows the confirmed subject ID and its source-linked result", async () => {
     const subjectPlan: AnalysisPlan = {
       ...proposal,

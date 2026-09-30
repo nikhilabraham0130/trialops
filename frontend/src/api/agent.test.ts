@@ -6,6 +6,7 @@ import {
   createInterpretation,
   getAnalysisPlan,
   getPlanGovernance,
+  reproduceAnalysisPlan,
 } from "./agent";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -64,6 +65,18 @@ describe("agent API client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8000/agent/plans/plan-1/governance",
       expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+  });
+
+  it("requests a fresh reproduction using only the saved plan ID", async () => {
+    const body = { status: "EXACT_MATCH", difference_count: 0 };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(reproduceAnalysisPlan("plan-1")).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/agent/plans/plan-1/reproduce",
+      expect.objectContaining({ method: "POST" }),
     );
   });
 
