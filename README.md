@@ -69,10 +69,12 @@ select any of these three approved tools, require explicit confirmation, store
 the result, and request a numerically verified explanation. A backend governance
 checklist reports whether the saved analysis is ready for independent review.
 An on-demand reproduction check reruns the deterministic tool against the saved
-dataset version and compares the structured result field by field.
+dataset version and compares the structured result field by field. A manual SQL
+workbench now accepts a limited read-only SELECT against version-filtered
+clinical views, with database permissions, a timeout, and a row cap.
 
 This is not a complete governed MVP yet. Independent review, full audit history,
-governed text-to-SQL, and a broader clinical tool catalog remain
+natural-language-to-SQL, and a broader clinical tool catalog remain
 to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer

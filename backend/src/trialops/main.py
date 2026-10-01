@@ -12,6 +12,7 @@ from trialops.agent.model import PlanModel
 from trialops.api.routes.agent import router as agent_router
 from trialops.api.routes.analytics import router as analytics_router
 from trialops.api.routes.health import router as health_router
+from trialops.api.routes.sql import router as sql_router
 from trialops.api.routes.studies import router as studies_router
 from trialops.core.config import Settings, get_settings
 from trialops.db.session import DatabaseResources, create_database_resources
@@ -67,6 +68,7 @@ def create_app(
     application.include_router(analytics_router)
     application.include_router(health_router)
     application.include_router(studies_router)
+    application.include_router(sql_router)
 
     return application
 

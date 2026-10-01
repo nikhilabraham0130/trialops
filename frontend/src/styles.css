@@ -521,6 +521,26 @@ h1 {
   font: inherit;
 }
 
+.sql-form {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.sql-form label {
+  color: #52635e;
+  font-size: 0.8rem;
+}
+
+.sql-form textarea {
+  width: 100%;
+  border: 1px solid #b9ccc1;
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  font-family: monospace;
+}
+
 .method-version {
   border-radius: 5px;
   padding: 5px 8px;

@@ -380,6 +380,19 @@ timestamp, outcome, hashes, and bounded field differences. The check does not
 change review state. An unexecuted plan or unavailable source returns a
 controlled `409`.
 
+## Governed SQL workbench
+
+`POST /dataset-versions/{dataset_version_id}/sql` accepts a `candidate_sql`
+string for one simple PostgreSQL `SELECT` over `vw_subjects`,
+`vw_adverse_events`, or `vw_laboratory_results`. The server parses the SQL,
+checks approved columns and constructs, and inserts `LIMIT 100` if needed.
+Joins, subqueries, arbitrary functions, writes, and internal tables are not
+supported. The database transaction uses a restricted reader role, a
+dataset-version filter, read-only mode, and a three-second statement timeout.
+The endpoint returns the normalized SQL and result rows. It does not generate
+SQL from natural language, and the local demo does not yet have user
+authentication or a SQL audit trail.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`

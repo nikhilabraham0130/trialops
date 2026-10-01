@@ -28,6 +28,11 @@ read-only `GET /agent/plans/{id}/governance` checklist. After execution, the
 Reproduce result action calls `POST /agent/plans/{id}/reproduce`, stores a
 comparison, and displays an exact match or field-level differences. A separate
 history action loads prior checks without changing the saved analysis.
+The study catalog also includes a manual governed SQL workbench. It sends a
+candidate SELECT to the backend and displays only rows returned from one of
+three approved, dataset-version-filtered clinical views. The browser does not
+validate SQL or hold database credentials; the backend and database enforce
+those limits. This is not natural-language-to-SQL generation yet.
 Recheck governance after
 execution or interpretation because the saved state has changed. A decision of
 `REVIEW_REQUIRED` does not mean approved; independent review is not implemented
