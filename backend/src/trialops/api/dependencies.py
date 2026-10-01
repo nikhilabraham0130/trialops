@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trialops.agent.interpretation_model import InterpretationModel
 from trialops.agent.model import PlanModel
 from trialops.db.session import DatabaseResources
+from trialops.sql.model import SQLModel
 
 
 async def get_database_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -53,3 +54,17 @@ def get_interpretation_model(request: Request) -> InterpretationModel:
 
 
 InterpretationProvider = Annotated[InterpretationModel, Depends(get_interpretation_model)]
+
+
+def get_sql_model(request: Request) -> SQLModel:
+    """Return the SQL drafting model; the model never gets database access."""
+    model = getattr(request.app.state, "sql_model", None)
+    if not isinstance(model, SQLModel):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SQL planning model is unavailable.",
+        )
+    return model
+
+
+SQLPlanningModel = Annotated[SQLModel, Depends(get_sql_model)]

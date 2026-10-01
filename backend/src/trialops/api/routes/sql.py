@@ -4,9 +4,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
-from trialops.api.dependencies import DatabaseSession
+from trialops.api.dependencies import DatabaseSession, SQLPlanningModel
+from trialops.datasets.models import DatasetVersion
 from trialops.sql.execution import GovernedSQLResult, SQLExecutionError, run_governed_sql
+from trialops.sql.planning import (
+    SQLPlanningError,
+    SQLPlanningErrorCode,
+    SQLProposal,
+    propose_clinical_sql,
+)
 from trialops.sql.policy import SQLPolicyError
 from trialops.validation.alt import DatasetVersionNotFoundError
 
@@ -15,6 +23,55 @@ router = APIRouter(prefix="/dataset-versions", tags=["governed-sql"])
 
 class SQLQueryRequest(BaseModel):
     candidate_sql: str = Field(min_length=1, max_length=4000)
+
+
+class SQLProposalRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+@router.post(
+    "/{dataset_version_id}/sql/proposals",
+    response_model=SQLProposal,
+    summary="Draft but do not execute a validated clinical SQL query",
+)
+async def propose_sql(
+    dataset_version_id: UUID,
+    request: SQLProposalRequest,
+    session: DatabaseSession,
+    model: SQLPlanningModel,
+) -> SQLProposal:
+    """Show an approved candidate for a separate, explicit execution request."""
+    if not request.question.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "INVALID_QUESTION", "message": "A visible question is required."},
+        )
+    version_id = await session.scalar(
+        select(DatasetVersion.id).where(DatasetVersion.id == dataset_version_id)
+    )
+    await session.rollback()
+    if version_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "DATASET_VERSION_NOT_FOUND",
+                "message": "The selected dataset version does not exist.",
+            },
+        )
+    try:
+        return await propose_clinical_sql(
+            model, dataset_version_id=dataset_version_id, question=request.question
+        )
+    except SQLPlanningError as exc:
+        status_code = {
+            SQLPlanningErrorCode.MODEL_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
+            SQLPlanningErrorCode.INVALID_MODEL_RESPONSE: status.HTTP_502_BAD_GATEWAY,
+            SQLPlanningErrorCode.QUERY_NOT_SUPPORTED: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        }[exc.code]
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code.value, "message": str(exc)},
+        ) from exc
 
 
 @router.post(

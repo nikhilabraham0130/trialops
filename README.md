@@ -38,9 +38,9 @@ The initial analytical workflows will cover:
 - Laboratory abnormality analysis
 - Subject-level safety summaries
 
-The product will add dataset validation and versioning, governed text-to-SQL, a
-tool-using analysis agent, evidence grounding, human review, audit history,
-lineage, and deterministic reproduction.
+The product includes dataset validation and versioning, a bounded text-to-SQL
+drafting flow, a tool-using analysis agent, evidence grounding, and deterministic
+reproduction. Human review and complete audit history are still planned.
 
 ## Data approach
 
@@ -70,11 +70,12 @@ the result, and request a numerically verified explanation. A backend governance
 checklist reports whether the saved analysis is ready for independent review.
 An on-demand reproduction check reruns the deterministic tool against the saved
 dataset version and compares the structured result field by field. A manual SQL
-workbench now accepts a limited read-only SELECT against version-filtered
-clinical views, with database permissions, a timeout, and a row cap.
+workbench accepts a limited read-only SELECT against version-filtered clinical
+views, with database permissions, a timeout, and a row cap. The AI can draft a
+query from a question, but the user must review and explicitly run it.
 
 This is not a complete governed MVP yet. Independent review, full audit history,
-natural-language-to-SQL, and a broader clinical tool catalog remain
+SQL audit history and a broader clinical tool catalog remain
 to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer

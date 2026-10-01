@@ -11,6 +11,7 @@ from trialops.agent.interpretation_model import (
     InterpretationModelRequest,
 )
 from trialops.agent.model import PlanModelError, PlanModelRequest
+from trialops.sql.model import SQLModelError, SQLModelRequest
 
 _PLAN_SYSTEM_PROMPT = """You select one approved TrialOps analysis tool only when it directly
 answers the user's question. If no listed tool can answer it, return tool_name "unsupported".
@@ -31,6 +32,16 @@ Use only the supplied aggregate facts. Every number written in the summary must 
 numeric_claims with its exact field and value. Mention percentages only when they are supplied
 as numeric facts. Do not make causal, diagnostic, treatment-emergent, or statistical-significance
 claims.
+"""
+
+_SQL_SYSTEM_PROMPT = """Draft one simple PostgreSQL SELECT for a clinical question.
+Return JSON only: {"candidate_sql":"SELECT ... or null","purpose":"brief explanation"}.
+Use exactly one approved view and only its listed columns. You may use COUNT, SUM,
+AVG, MIN, or MAX, filters, grouping, ordering, and LIMIT up to 100. No joins,
+subqueries, arbitrary functions, table aliases, or internal tables. If the
+question needs a join, an unavailable field, a clinical inference, or cannot be
+answered by one approved view, set candidate_sql to null. Never assume
+severity means seriousness or treatment emergence. Do not execute SQL.
 """
 
 
@@ -171,3 +182,18 @@ class DeepSeekModelAdapter:
             )
         except _DeepSeekRequestError as exc:
             raise InterpretationModelError("DeepSeek interpretation request failed.") from exc
+
+    async def generate_sql_json(self, request: SQLModelRequest) -> str:
+        """Draft SQL against only the application-supplied curated schema."""
+        user_prompt = json.dumps(
+            {"question": request.question, "approved_schema": request.approved_schema},
+            sort_keys=True,
+        )
+        try:
+            return await self._generate_json(
+                system_prompt=_SQL_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                max_tokens=512,
+            )
+        except _DeepSeekRequestError as exc:
+            raise SQLModelError("DeepSeek SQL planning request failed.") from exc

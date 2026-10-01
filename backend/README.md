@@ -389,9 +389,13 @@ checks approved columns and constructs, and inserts `LIMIT 100` if needed.
 Joins, subqueries, arbitrary functions, writes, and internal tables are not
 supported. The database transaction uses a restricted reader role, a
 dataset-version filter, read-only mode, and a three-second statement timeout.
-The endpoint returns the normalized SQL and result rows. It does not generate
-SQL from natural language, and the local demo does not yet have user
-authentication or a SQL audit trail.
+The endpoint returns the normalized SQL and result rows. A separate
+`POST /dataset-versions/{dataset_version_id}/sql/proposals` accepts a question,
+asks the configured AI provider for a candidate query, validates it against the
+same SQL policy, and returns the unexecuted proposal. The user must explicitly
+run it through the first endpoint. A question that cannot be answered using one
+curated view is rejected. The local demo does not yet have user authentication,
+persisted SQL proposals, or a SQL audit trail.
 
 ## Configuration
 

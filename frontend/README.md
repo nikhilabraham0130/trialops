@@ -32,7 +32,8 @@ The study catalog also includes a manual governed SQL workbench. It sends a
 candidate SELECT to the backend and displays only rows returned from one of
 three approved, dataset-version-filtered clinical views. The browser does not
 validate SQL or hold database credentials; the backend and database enforce
-those limits. This is not natural-language-to-SQL generation yet.
+those limits. The optional AI drafting action translates a question into an
+unexecuted proposal. The user reviews the SQL and clicks Run separately.
 Recheck governance after
 execution or interpretation because the saved state has changed. A decision of
 `REVIEW_REQUIRED` does not mean approved; independent review is not implemented

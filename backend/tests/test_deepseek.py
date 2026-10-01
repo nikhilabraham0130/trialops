@@ -17,6 +17,7 @@ from trialops.agent.interpretation_model import (
 )
 from trialops.agent.model import PlanModelError, PlanModelRequest
 from trialops.agent.tools import get_approved_tool_specifications
+from trialops.sql.model import SQLModelError, SQLModelRequest
 
 
 def _adapter(handler: httpx.MockTransport) -> DeepSeekModelAdapter:
@@ -160,3 +161,35 @@ def test_interpretation_request_translates_provider_failure() -> None:
         asyncio.run(model.generate_interpretation_json(request))
 
     assert str(raised.value) == "DeepSeek interpretation request failed."
+
+
+def test_sql_request_sends_only_question_and_approved_schema() -> None:
+    response_json = '{"candidate_sql":"SELECT COUNT(*) AS n FROM vw_subjects","purpose":"Count."}'
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["response_format"] == {"type": "json_object"}
+        prompt = json.loads(body["messages"][1]["content"])
+        assert prompt == {
+            "question": "How many subjects?",
+            "approved_schema": {"vw_subjects": ["actual_arm", "unique_subject_id"]},
+        }
+        assert "execute" in body["messages"][0]["content"].lower()
+        return httpx.Response(200, json=_completion(response_json))
+
+    model = _adapter(httpx.MockTransport(respond))
+    result = asyncio.run(
+        model.generate_sql_json(
+            SQLModelRequest(
+                question="How many subjects?",
+                approved_schema={"vw_subjects": ("actual_arm", "unique_subject_id")},
+            )
+        )
+    )
+    assert result == response_json
+
+
+def test_sql_request_translates_provider_failure() -> None:
+    model = _adapter(httpx.MockTransport(lambda _request: httpx.Response(503)))
+    with pytest.raises(SQLModelError):
+        asyncio.run(model.generate_sql_json(SQLModelRequest(question="Count?", approved_schema={})))

@@ -16,6 +16,7 @@ from trialops.api.routes.sql import router as sql_router
 from trialops.api.routes.studies import router as studies_router
 from trialops.core.config import Settings, get_settings
 from trialops.db.session import DatabaseResources, create_database_resources
+from trialops.sql.model import SQLModel
 
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ def create_app(
     *,
     plan_model: PlanModel | None = None,
     interpretation_model: InterpretationModel | None = None,
+    sql_model: SQLModel | None = None,
 ) -> FastAPI:
     """Create and configure a TrialOps API instance."""
     app_settings = settings or get_settings()
@@ -57,6 +59,7 @@ def create_app(
     application.state.interpretation_model = (
         interpretation_model if interpretation_model is not None else configured_model
     )
+    application.state.sql_model = sql_model if sql_model is not None else configured_model
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(app_settings.cors_origins),
