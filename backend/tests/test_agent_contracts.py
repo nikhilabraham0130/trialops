@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from trialops.agent.contracts import (
     AnalysisPlan,
     ApprovedToolName,
+    LabRangeToolInput,
     ModelPlanProposal,
     PlanStatus,
     SubjectSafetyToolInput,
@@ -19,7 +20,7 @@ from trialops.agent.tools import get_approved_tool_specifications
 def test_catalog_exposes_only_implemented_clinical_tools() -> None:
     specifications = get_approved_tool_specifications()
 
-    assert len(specifications) == 4
+    assert len(specifications) == 5
     specification = specifications[0]
     assert specification.name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert specification.requires_confirmation
@@ -28,17 +29,20 @@ def test_catalog_exposes_only_implemented_clinical_tools() -> None:
     assert specification.input_schema["required"] == ["dataset_version_id"]
     assert specification.input_schema["properties"]["dataset_version_id"]["format"] == "uuid"
     assert specification.input_schema["additionalProperties"] is False
-    severe = specifications[1]
+    lab = specifications[1]
+    assert lab.name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE
+    assert set(lab.input_schema["required"]) == {"dataset_version_id", "test_code"}
+    severe = specifications[2]
     assert severe.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
     assert severe.requires_confirmation
     assert "not treatment-emergent" in severe.description
     assert severe.input_schema["required"] == ["dataset_version_id"]
-    serious = specifications[2]
+    serious = specifications[3]
     assert serious.name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
     assert serious.requires_confirmation
     assert "AESER = Y" in serious.description
     assert serious.input_schema["required"] == ["dataset_version_id"]
-    subject = specifications[3]
+    subject = specifications[4]
     assert subject.name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
     assert subject.requires_confirmation
     assert set(subject.input_schema["required"]) == {"dataset_version_id", "subject_id"}
@@ -79,6 +83,33 @@ def test_subject_plan_requires_id_and_other_tools_reject_it() -> None:
                 tool_name=ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
                 purpose="Check ALT.",
                 subject_id="S1",
+            ),
+        )
+
+
+def test_lab_plan_requires_exact_test_code_in_question() -> None:
+    version_id = uuid4()
+    plan = create_analysis_plan(
+        question="Were AST results outside their reference range?",
+        dataset_version_id=version_id,
+        proposal=ModelPlanProposal(
+            tool_name=ApprovedToolName.CHECK_LAB_REFERENCE_RANGE,
+            purpose="Compare AST to source limits.",
+            lab_test_code="AST",
+        ),
+    )
+    assert isinstance(plan.tool_call.arguments, LabRangeToolInput)
+    assert plan.tool_call.arguments.test_code == "AST"
+    assert plan.tool_call.arguments.dataset_version_id == version_id
+
+    with pytest.raises(ValueError, match="must appear in the question"):
+        create_analysis_plan(
+            question="Were AST results out of range?",
+            dataset_version_id=version_id,
+            proposal=ModelPlanProposal(
+                tool_name=ApprovedToolName.CHECK_LAB_REFERENCE_RANGE,
+                purpose="Compare BILI to limits.",
+                lab_test_code="BILI",
             ),
         )
 

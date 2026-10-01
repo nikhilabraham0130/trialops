@@ -14,21 +14,28 @@ from trialops.agent.contracts import (
     AltThresholdToolInput,
     AnalysisExecution,
     ApprovedToolName,
+    LabRangeToolInput,
     PlanStatus,
     SubjectSafetyToolInput,
 )
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
+    to_lab_range_response,
     to_serious_ae_incidence_response,
     to_severe_ae_incidence_response,
     to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.lab_reference_ranges import (
+    LabTestNotFoundError,
+    calculate_stored_lab_reference_range,
+)
 from trialops.analytics.serious_adverse_events import calculate_stored_serious_ae_incidence
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.analytics.subject_safety import (
@@ -90,9 +97,11 @@ async def execute_confirmed_plan(
 
     try:
         if record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
-            arguments: AltThresholdToolInput | SubjectSafetyToolInput = (
+            arguments: AltThresholdToolInput | LabRangeToolInput | SubjectSafetyToolInput = (
                 SubjectSafetyToolInput.model_validate(record.tool_arguments)
             )
+        elif record.tool_name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE:
+            arguments = LabRangeToolInput.model_validate(record.tool_arguments)
         else:
             arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
     except ValidationError as exc:
@@ -106,6 +115,7 @@ async def execute_confirmed_plan(
         record.tool_name
         not in {
             ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+            ApprovedToolName.CHECK_LAB_REFERENCE_RANGE,
             ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
             ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE,
             ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
@@ -121,6 +131,7 @@ async def execute_confirmed_plan(
     try:
         structured_result: (
             AltAbnormalityResponse
+            | LabRangeResponse
             | SevereAeIncidenceResponse
             | SeriousAeIncidenceResponse
             | SubjectSafetySummaryResponse
@@ -128,6 +139,17 @@ async def execute_confirmed_plan(
         if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
             result = await calculate_stored_alt_gt_3x_uln(session, record.dataset_version_id)
             structured_result = to_alt_abnormality_response(record.dataset_version_id, result)
+        elif record.tool_name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE:
+            if not isinstance(arguments, LabRangeToolInput):
+                await _reject_plan(
+                    session,
+                    AgentExecutionErrorCode.INVALID_STORED_PLAN,
+                    "The stored laboratory plan has invalid arguments.",
+                )
+            lab_result = await calculate_stored_lab_reference_range(
+                session, record.dataset_version_id, arguments.test_code
+            )
+            structured_result = to_lab_range_response(record.dataset_version_id, lab_result)
         elif record.tool_name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE:
             severe_result = await calculate_stored_severe_ae_incidence(
                 session, record.dataset_version_id
@@ -161,7 +183,7 @@ async def execute_confirmed_plan(
                 AgentExecutionErrorCode.INVALID_STORED_PLAN,
                 "The stored analysis plan requests an unsupported tool.",
             )
-    except (DatasetVersionNotFoundError, SubjectNotFoundError) as exc:
+    except (DatasetVersionNotFoundError, LabTestNotFoundError, SubjectNotFoundError) as exc:
         await session.rollback()
         raise AgentExecutionError(
             AgentExecutionErrorCode.INVALID_STORED_PLAN,

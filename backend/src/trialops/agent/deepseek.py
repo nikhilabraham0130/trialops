@@ -16,9 +16,12 @@ from trialops.sql.model import SQLModelError, SQLModelRequest
 _PLAN_SYSTEM_PROMPT = """You select one approved TrialOps analysis tool only when it directly
 answers the user's question. If no listed tool can answer it, return tool_name "unsupported".
 Return JSON only, using exactly this shape:
-{"tool_name":"approved tool name or unsupported","purpose":"brief explanation","subject_id":null}
+{"tool_name":"approved or unsupported","purpose":"why","subject_id":null,"lab_test_code":null}
 For get_subject_safety_summary, copy the exact USUBJID from the question into subject_id.
 If no exact subject identifier is present, return unsupported with subject_id null.
+For check_lab_reference_range, copy the exact LBTESTCD from the question into
+lab_test_code (uppercase). If the question does not name a test code, return
+unsupported. For every other tool, lab_test_code must be null.
 For every other tool, subject_id must be null. Never invent an identifier.
 Do not add other arguments, dataset identifiers, markdown, or unapproved tools.
 Do not equate AESEV = SEVERE with seriousness, CTCAE grades, or treatment emergence.

@@ -17,6 +17,7 @@ import {
 import type { AltAbnormalityResponse, SeriousAeIncidenceResponse } from "./api/analytics";
 import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
 import { SevereAeResult } from "./SevereAeCard";
+import { LabRangeResult } from "./LabRangeCard";
 import { SeriousAeResult } from "./SeriousAeCard";
 import { SubjectSafetyResult } from "./SubjectSafetyCard";
 import { ReviewPanel } from "./ReviewPanel";
@@ -288,9 +289,9 @@ export function AnalysisWorkspace({
         <label htmlFor="safety-question">Your question</label>
         <textarea id="safety-question" rows={3} maxLength={2000} value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Were any ALT measurements elevated, which arm had serious AEs, or summarize subject 01-701-1015?" />
+          placeholder="Were AST results outside their reference range, which arm had serious AEs, or summarize subject 01-701-1015?" />
         <div className="form-footer">
-          <span>Supports ALT above 3 × ULN, severe and serious AEs by actual arm, and named-subject safety summaries.</span>
+          <span>Supports ALT above 3 × ULN, named lab test codes (such as AST) against source limits, severe and serious AEs by arm, and named-subject summaries.</span>
           <button className="analysis-button" type="submit" disabled={busy || !question.trim() || !selectedVersionId}>
             {step === "planning" ? "Preparing plan..." : "Propose analysis"}
           </button>
@@ -309,6 +310,8 @@ export function AnalysisWorkspace({
                 <h3 id="plan-title">
                   {plan.tool_call.name === "calculate_alt_gt_3x_uln"
                     ? "ALT threshold calculation"
+                    : plan.tool_call.name === "check_lab_reference_range"
+                      ? "Lab reference-range check"
                     : plan.tool_call.name === "compare_severe_ae_incidence"
                       ? "Severe AE incidence by arm"
                       : plan.tool_call.name === "compare_serious_ae_incidence"
@@ -323,6 +326,9 @@ export function AnalysisWorkspace({
             {plan.tool_call.arguments.subject_id && (
               <p><strong>Subject:</strong> {plan.tool_call.arguments.subject_id}</p>
             )}
+            {plan.tool_call.arguments.test_code && (
+              <p><strong>Lab test code:</strong> {plan.tool_call.arguments.test_code}</p>
+            )}
             <p className="plan-id">Saved analysis ID: <code>{plan.id}</code></p>
             {plan.status === "AWAITING_CONFIRMATION" && (
               <div className="confirmation-row">
@@ -336,6 +342,8 @@ export function AnalysisWorkspace({
 
           {plan.result && (isSeriousAeResult(plan.result)
             ? <SeriousAeResult result={plan.result} />
+            : "test_code" in plan.result
+              ? <LabRangeResult result={plan.result} />
             : "arms" in plan.result
             ? <SevereAeResult result={plan.result} />
             : "unique_subject_id" in plan.result

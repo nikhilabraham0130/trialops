@@ -20,6 +20,7 @@ from trialops.agent.interpretation_model import (
 )
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
@@ -28,6 +29,7 @@ from trialops.analytics.contracts import (
 PROMPT_VERSION = "alt-result-interpretation/1.0"
 SEVERE_AE_PROMPT_VERSION = "severe-ae-result-interpretation/1.0"
 SERIOUS_AE_PROMPT_VERSION = "serious-ae-result-interpretation/1.0"
+LAB_RANGE_PROMPT_VERSION = "lab-reference-range-interpretation/1.0"
 SUBJECT_SAFETY_PROMPT_VERSION = "subject-safety-interpretation/1.0"
 _NUMBER_PATTERN = re.compile(r"(?<![\d.])[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?![\d.])")
 
@@ -50,11 +52,25 @@ class InterpretationError(RuntimeError):
 
 def build_numeric_facts(
     result: AltAbnormalityResponse
+    | LabRangeResponse
     | SevereAeIncidenceResponse
     | SeriousAeIncidenceResponse
     | SubjectSafetySummaryResponse,
 ) -> tuple[NumericFact, ...]:
     """Select the aggregate numeric facts the model is permitted to cite."""
+    if isinstance(result, LabRangeResponse):
+        return tuple(
+            NumericFact(name=name, value=Decimal(getattr(result, name)))
+            for name in (
+                "total_rows",
+                "eligible_rows",
+                "excluded_rows",
+                "below_lower_rows",
+                "above_upper_rows",
+                "out_of_range_rows",
+                "subjects_with_out_of_range",
+            )
+        )
     if isinstance(result, SevereAeIncidenceResponse):
         facts: list[NumericFact] = [
             NumericFact(
@@ -195,6 +211,7 @@ async def generate_grounded_interpretation(
     question: str,
     purpose: str,
     result: AltAbnormalityResponse
+    | LabRangeResponse
     | SevereAeIncidenceResponse
     | SeriousAeIncidenceResponse
     | SubjectSafetySummaryResponse,
@@ -212,6 +229,9 @@ async def generate_grounded_interpretation(
     if isinstance(result, (SevereAeIncidenceResponse, SeriousAeIncidenceResponse)):
         warnings: tuple[str, ...] = (result.population_definition,)
         group_labels = tuple(arm.arm for arm in result.arms)
+    elif isinstance(result, LabRangeResponse):
+        warnings = (result.interpretation_limit,)
+        group_labels = (result.test_code,)
     elif isinstance(result, SubjectSafetySummaryResponse):
         warnings = (result.interpretation_limit,)
         group_labels = ()
@@ -226,7 +246,7 @@ async def generate_grounded_interpretation(
         warnings=warnings,
         timing_limitation=(
             result.interpretation_limit
-            if isinstance(result, SubjectSafetySummaryResponse)
+            if isinstance(result, (SubjectSafetySummaryResponse, LabRangeResponse))
             else result.timing_limitation
         ),
         group_labels=group_labels,
@@ -259,6 +279,8 @@ async def generate_grounded_interpretation(
             if is_serious_ae
             else SUBJECT_SAFETY_PROMPT_VERSION
             if isinstance(result, SubjectSafetySummaryResponse)
+            else LAB_RANGE_PROMPT_VERSION
+            if isinstance(result, LabRangeResponse)
             else PROMPT_VERSION
         ),
         model_id=model.model_id,

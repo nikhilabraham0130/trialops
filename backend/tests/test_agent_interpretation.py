@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from trialops.agent.fake_interpretation_model import FakeInterpretationModel
 from trialops.agent.interpretation import (
+    LAB_RANGE_PROMPT_VERSION,
     PROMPT_VERSION,
     SERIOUS_AE_PROMPT_VERSION,
     SEVERE_AE_PROMPT_VERSION,
@@ -26,6 +27,7 @@ from trialops.agent.interpretation_contracts import (
 from trialops.agent.interpretation_model import InterpretationModelError
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeArmResponse,
     SeriousAeIncidenceResponse,
     SevereAeArmResponse,
@@ -241,6 +243,48 @@ def test_serious_ae_interpretation_uses_serious_counts_and_timing_warning() -> N
         "arm_1_subjects_with_serious_ae",
         "arm_1_serious_ae_event_count",
         "arm_1_incidence_percent",
+    }
+
+
+def test_lab_range_interpretation_uses_aggregate_counts_only() -> None:
+    result = LabRangeResponse(
+        dataset_version_id=UUID("00000000-0000-0000-0000-000000000001"),
+        method_version="lab-reference-range/1.0",
+        test_code="AST",
+        total_rows=3,
+        eligible_rows=2,
+        excluded_rows=1,
+        below_lower_rows=0,
+        above_upper_rows=1,
+        out_of_range_rows=1,
+        subjects_with_out_of_range=1,
+        evidence=(),
+        evidence_truncated=False,
+        interpretation_limit="No treatment timing is established.",
+    )
+    model = FakeInterpretationModel(
+        '{"summary":"For AST, 1 of 2 eligible measurements was out of range.",'
+        '"numeric_claims":['
+        '{"field":"out_of_range_rows","value":1},'
+        '{"field":"eligible_rows","value":2}]}'
+    )
+    verified = asyncio.run(
+        generate_grounded_interpretation(
+            model, question="Check AST range.", purpose="Check source limits.", result=result
+        )
+    )
+    assert verified.prompt_version == LAB_RANGE_PROMPT_VERSION
+    request = model.requests[0]
+    assert request.group_labels == ("AST",)
+    assert request.timing_limitation == "No treatment timing is established."
+    assert {fact.name for fact in request.numeric_facts} == {
+        "total_rows",
+        "eligible_rows",
+        "excluded_rows",
+        "below_lower_rows",
+        "above_upper_rows",
+        "out_of_range_rows",
+        "subjects_with_out_of_range",
     }
 
 

@@ -5,7 +5,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from trialops.agent.contracts import AltThresholdToolInput, ApprovedToolName, SubjectSafetyToolInput
+from trialops.agent.contracts import (
+    AltThresholdToolInput,
+    ApprovedToolName,
+    LabRangeToolInput,
+    SubjectSafetyToolInput,
+)
 
 
 class ToolSpecification(BaseModel):
@@ -22,6 +27,7 @@ class ToolSpecification(BaseModel):
 _TOOL_INPUT_MODELS: MappingProxyType[ApprovedToolName, type[BaseModel]] = MappingProxyType(
     {
         ApprovedToolName.CALCULATE_ALT_GT_3X_ULN: AltThresholdToolInput,
+        ApprovedToolName.CHECK_LAB_REFERENCE_RANGE: LabRangeToolInput,
         ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE: AltThresholdToolInput,
         ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE: AltThresholdToolInput,
         ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY: SubjectSafetyToolInput,
@@ -34,6 +40,12 @@ _TOOL_DESCRIPTIONS: MappingProxyType[ApprovedToolName, str] = MappingProxyType(
             "Calculate stored ALT measurements strictly above three times their upper reference "
             "limit for one immutable dataset version. Report measurements and distinct subjects "
             "separately. Do not describe unflagged measurements as post-baseline."
+        ),
+        ApprovedToolName.CHECK_LAB_REFERENCE_RANGE: (
+            "For an LBTESTCD explicitly written in the question, count numeric lab "
+            "measurements strictly below or above each row's own reference limits. "
+            "Report invalid or missing-limit exclusions separately. This is descriptive, "
+            "not a diagnosis or treatment-emergent assessment."
         ),
         ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE: (
             "Count distinct subjects with one or more recorded AESEV = SEVERE events by actual "

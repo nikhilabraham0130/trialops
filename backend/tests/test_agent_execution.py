@@ -18,6 +18,7 @@ from trialops.agent.execution import (
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import SubjectSafetySummaryResponse
 from trialops.analytics.lab_abnormalities import AltAbnormalityResult
+from trialops.analytics.lab_reference_ranges import LabRangeResult
 from trialops.analytics.serious_adverse_events import (
     SeriousAeArmResult,
     SeriousAeIncidenceResult,
@@ -177,6 +178,42 @@ def test_confirmation_executes_and_persists_selected_serious_ae_tool(
     assert execution.result.method_version == "serious-ae-incidence/1.0"
     assert record.result == execution.result.model_dump(mode="json")
     assert fake.commit_calls == 1
+
+
+def test_confirmation_uses_saved_lab_test_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    record = _record()
+    record.tool_name = ApprovedToolName.CHECK_LAB_REFERENCE_RANGE
+    record.tool_arguments = {
+        "dataset_version_id": str(record.dataset_version_id),
+        "test_code": "AST",
+    }
+    fake = _FakeSession(record)
+
+    async def calculation(
+        _session: AsyncSession, version_id: UUID, test_code: str
+    ) -> LabRangeResult:
+        assert version_id == record.dataset_version_id
+        assert test_code == "AST"
+        return LabRangeResult(
+            method_version="lab-reference-range/1.0",
+            test_code="AST",
+            total_rows=3,
+            eligible_rows=2,
+            excluded_rows=1,
+            below_lower_rows=0,
+            above_upper_rows=1,
+            subjects_with_out_of_range=1,
+            evidence=(),
+            evidence_truncated=False,
+        )
+
+    monkeypatch.setattr(
+        "trialops.agent.execution.calculate_stored_lab_reference_range", calculation
+    )
+    execution = asyncio.run(execute_confirmed_plan(cast(AsyncSession, fake), record.id))
+    assert execution.tool_name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE
+    assert execution.result.test_code == "AST"
+    assert record.result == execution.result.model_dump(mode="json")
 
 
 def test_confirmation_executes_saved_subject_id_not_client_supplied_id(

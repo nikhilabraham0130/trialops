@@ -33,6 +33,31 @@ export interface AltAbnormalityResponse {
   timing_limitation: string;
 }
 
+export interface LabRangeResponse {
+  dataset_version_id: string;
+  method_version: string;
+  test_code: string;
+  total_rows: number;
+  eligible_rows: number;
+  excluded_rows: number;
+  below_lower_rows: number;
+  above_upper_rows: number;
+  out_of_range_rows: number;
+  subjects_with_out_of_range: number;
+  evidence: {
+    source_record_number: number;
+    unique_subject_id: string;
+    standard_result: string;
+    standard_unit: string | null;
+    lower_reference_limit: string;
+    upper_reference_limit: string;
+    direction: "BELOW_LOWER" | "ABOVE_UPPER";
+    baseline_flag: string | null;
+  }[];
+  evidence_truncated: boolean;
+  interpretation_limit: string;
+}
+
 export interface SevereAeIncidenceResponse {
   dataset_version_id: string;
   method_version: string;
@@ -128,6 +153,21 @@ export async function getAltAbnormalities(
   }
 
   return (await response.json()) as AltAbnormalityResponse;
+}
+
+export async function getLabReferenceRange(
+  datasetVersionId: string,
+  testCode: string,
+  signal?: AbortSignal,
+): Promise<LabRangeResponse> {
+  const response = await fetch(
+    `${apiUrl}/dataset-versions/${encodeURIComponent(datasetVersionId)}/analytics/lab-reference-range?test_code=${encodeURIComponent(testCode)}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(`Lab reference-range request failed with status ${response.status}.`);
+  }
+  return (await response.json()) as LabRangeResponse;
 }
 
 export async function getSevereAeIncidence(

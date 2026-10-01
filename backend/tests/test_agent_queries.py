@@ -19,6 +19,7 @@ from trialops.agent.queries import (
 )
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SevereAeArmResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
@@ -137,6 +138,39 @@ def test_query_rebuilds_severe_ae_plan_with_matching_result() -> None:
     assert details.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
     assert isinstance(details.result, SevereAeIncidenceResponse)
     assert details.result.arms[0].incidence_percent == Decimal("33.33")
+
+
+def test_query_rebuilds_lab_plan_and_rejects_mismatched_test_code() -> None:
+    record = _record(PlanStatus.EXECUTED)
+    record.tool_name = ApprovedToolName.CHECK_LAB_REFERENCE_RANGE
+    record.tool_arguments = {
+        "dataset_version_id": str(record.dataset_version_id),
+        "test_code": "AST",
+    }
+    result = LabRangeResponse(
+        dataset_version_id=record.dataset_version_id,
+        method_version="lab-reference-range/1.0",
+        test_code="AST",
+        total_rows=3,
+        eligible_rows=2,
+        excluded_rows=1,
+        below_lower_rows=0,
+        above_upper_rows=1,
+        out_of_range_rows=1,
+        subjects_with_out_of_range=1,
+        evidence=(),
+        evidence_truncated=False,
+        interpretation_limit="No timing inference.",
+    )
+    record.result = result.model_dump(mode="json")
+    details = asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+    assert isinstance(details.result, LabRangeResponse)
+    assert details.result.test_code == "AST"
+
+    record.result = result.model_copy(update={"test_code": "BILI"}).model_dump(mode="json")
+    with pytest.raises(AgentPlanQueryError) as raised:
+        asyncio.run(get_analysis_plan(cast(AsyncSession, _FakeSession(record)), record.id))
+    assert raised.value.code is AgentPlanQueryErrorCode.INVALID_STORED_PLAN
 
 
 def test_query_rebuilds_subject_plan_and_rejects_mismatched_result() -> None:

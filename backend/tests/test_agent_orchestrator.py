@@ -8,6 +8,7 @@ import pytest
 from trialops.agent.contracts import (
     AnalysisPlan,
     ApprovedToolName,
+    LabRangeToolInput,
     PlanStatus,
     SubjectSafetyToolInput,
 )
@@ -51,12 +52,13 @@ def test_orchestrator_sends_only_question_and_approved_catalog_to_fake_model() -
     assert len(model.requests) == 1
     request = model.requests[0]
     assert request.question == "Were any ALT measurements above three times the upper limit?"
-    assert len(request.tools) == 4
+    assert len(request.tools) == 5
     assert request.tools[0].name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert request.tools[0].requires_confirmation
-    assert request.tools[1].name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
-    assert request.tools[2].name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
-    assert request.tools[3].name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
+    assert request.tools[1].name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE
+    assert request.tools[2].name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
+    assert request.tools[3].name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
+    assert request.tools[4].name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
     assert plan.id == plan_id
     assert plan.dataset_version_id == dataset_version_id
     assert plan.tool_call.arguments.dataset_version_id == dataset_version_id
@@ -98,6 +100,26 @@ def test_orchestrator_can_select_serious_ae_tool_without_executing_it() -> None:
     assert plan.tool_call.name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
     assert plan.tool_call.arguments.dataset_version_id == dataset_version_id
     assert plan.status is PlanStatus.AWAITING_CONFIRMATION
+
+
+def test_orchestrator_binds_only_lab_code_named_in_question() -> None:
+    model = FakePlanModel(
+        '{"tool_name":"check_lab_reference_range",'
+        '"purpose":"Compare AST with source limits.","lab_test_code":"AST"}'
+    )
+    plan, version_id, _ = _propose(model, question="Were AST results outside range?")
+    assert plan.tool_call.name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE
+    assert isinstance(plan.tool_call.arguments, LabRangeToolInput)
+    assert plan.tool_call.arguments.test_code == "AST"
+    assert plan.tool_call.arguments.dataset_version_id == version_id
+
+    wrong_model = FakePlanModel(
+        '{"tool_name":"check_lab_reference_range",'
+        '"purpose":"Compare BILI with source limits.","lab_test_code":"BILI"}'
+    )
+    with pytest.raises(AgentPlanningError) as raised:
+        _propose(wrong_model, question="Were AST results outside range?")
+    assert raised.value.code is AgentPlanningErrorCode.INVALID_MODEL_RESPONSE
 
 
 def test_orchestrator_can_select_an_explicitly_named_subject() -> None:

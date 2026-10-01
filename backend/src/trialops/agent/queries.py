@@ -13,6 +13,7 @@ from trialops.agent.contracts import (
     AnalysisPlanDetails,
     ApprovedToolCall,
     ApprovedToolName,
+    LabRangeToolInput,
     PlanStatus,
     SubjectSafetyToolInput,
 )
@@ -20,6 +21,7 @@ from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
@@ -51,9 +53,11 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
     """Rebuild one ORM record only when all stored fields agree."""
     try:
         if record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
-            arguments: AltThresholdToolInput | SubjectSafetyToolInput = (
+            arguments: AltThresholdToolInput | LabRangeToolInput | SubjectSafetyToolInput = (
                 SubjectSafetyToolInput.model_validate(record.tool_arguments)
             )
+        elif record.tool_name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE:
+            arguments = LabRangeToolInput.model_validate(record.tool_arguments)
         else:
             arguments = AltThresholdToolInput.model_validate(record.tool_arguments)
     except ValidationError as exc:
@@ -66,6 +70,7 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
         record.tool_name
         not in {
             ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
+            ApprovedToolName.CHECK_LAB_REFERENCE_RANGE,
             ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
             ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE,
             ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
@@ -77,6 +82,7 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
     try:
         result: (
             AltAbnormalityResponse
+            | LabRangeResponse
             | SevereAeIncidenceResponse
             | SeriousAeIncidenceResponse
             | SubjectSafetySummaryResponse
@@ -85,6 +91,8 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
         if record.result is not None:
             if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
                 result = AltAbnormalityResponse.model_validate(record.result)
+            elif record.tool_name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE:
+                result = LabRangeResponse.model_validate(record.result)
             elif record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
                 result = SubjectSafetySummaryResponse.model_validate(record.result)
             elif record.tool_name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE:
@@ -99,6 +107,13 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
 
     if result is not None and result.dataset_version_id != record.dataset_version_id:
         _invalid_stored_plan("The stored result does not match the plan's dataset version.")
+
+    if (
+        isinstance(result, LabRangeResponse)
+        and isinstance(arguments, LabRangeToolInput)
+        and result.test_code != arguments.test_code
+    ):
+        _invalid_stored_plan("The stored lab result does not match the confirmed test code.")
 
     if (
         isinstance(result, SubjectSafetySummaryResponse)

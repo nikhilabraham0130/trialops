@@ -15,16 +15,20 @@ from trialops.agent.contracts import (
     AnalysisPlanDetails,
     ApprovedToolCall,
     ApprovedToolName,
+    LabRangeToolInput,
     PlanStatus,
     SubjectSafetyToolInput,
 )
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SubjectSafetySummaryResponse,
+    to_lab_range_response,
     to_serious_ae_incidence_response,
 )
 from trialops.analytics.lab_abnormalities import AltAbnormalityResult
+from trialops.analytics.lab_reference_ranges import LabRangeResult
 from trialops.analytics.serious_adverse_events import (
     SeriousAeArmResult,
     SeriousAeIncidenceResult,
@@ -197,6 +201,52 @@ def test_reproduction_reruns_serious_ae_with_saved_version(
     monkeypatch.setattr("trialops.lineage.reproduction.get_analysis_plan", fake_plan)
     monkeypatch.setattr(
         "trialops.lineage.reproduction.calculate_stored_serious_ae_incidence", fake_calculation
+    )
+    comparison = asyncio.run(reproduce_analysis_plan(cast(AsyncSession, object()), plan.id))
+    assert comparison.status == "EXACT_MATCH"
+
+
+def test_reproduction_uses_saved_lab_test_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = _plan()
+    result = LabRangeResult(
+        method_version="lab-reference-range/1.0",
+        test_code="AST",
+        total_rows=3,
+        eligible_rows=2,
+        excluded_rows=1,
+        below_lower_rows=0,
+        above_upper_rows=1,
+        subjects_with_out_of_range=1,
+        evidence=(),
+        evidence_truncated=False,
+    )
+    plan = plan.model_copy(
+        update={
+            "tool_call": ApprovedToolCall(
+                name=ApprovedToolName.CHECK_LAB_REFERENCE_RANGE,
+                arguments=LabRangeToolInput(
+                    dataset_version_id=plan.dataset_version_id,
+                    test_code="AST",
+                ),
+            ),
+            "result": to_lab_range_response(plan.dataset_version_id, result),
+        }
+    )
+    assert isinstance(plan.result, LabRangeResponse)
+
+    async def fake_plan(_session: AsyncSession, _plan_id: object) -> AnalysisPlanDetails:
+        return plan
+
+    async def fake_calculation(
+        _session: AsyncSession, version_id: object, test_code: str
+    ) -> LabRangeResult:
+        assert version_id == plan.dataset_version_id
+        assert test_code == "AST"
+        return result
+
+    monkeypatch.setattr("trialops.lineage.reproduction.get_analysis_plan", fake_plan)
+    monkeypatch.setattr(
+        "trialops.lineage.reproduction.calculate_stored_lab_reference_range", fake_calculation
     )
     comparison = asyncio.run(reproduce_analysis_plan(cast(AsyncSession, object()), plan.id))
     assert comparison.status == "EXACT_MATCH"

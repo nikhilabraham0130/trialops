@@ -1,18 +1,19 @@
 # TrialOps frontend
 
 This React and TypeScript application provides an analysis workspace above the
-study catalog. Select a dataset version, ask about ALT elevation or recorded
-severe or serious AEs by treatment arm, review the
-AI-proposed approved tool, and explicitly confirm before Python runs the
+study catalog. Select a dataset version, ask about ALT elevation, a named lab
+test code's reference range, or recorded severe or serious AEs by treatment
+arm. Review the AI-proposed approved tool and explicitly confirm before Python runs the
 calculation. The structured result and source evidence are shown separately
 from the AI interpretation. A saved plan ID is placed in the page URL so a
 refresh reloads its state from PostgreSQL.
 
-Direct `Run ALT check`, `Run severe-AE check`, and `Run serious-AE check` actions are also available in
-the study catalog. The catalog also has a subject safety lookup by `USUBJID`.
+Direct `Run ALT check`, `Check lab reference range`, `Run severe-AE check`, and
+`Run serious-AE check` actions are also available in the study catalog. The
+catalog also has a subject safety lookup by `USUBJID`.
 It reads DM, AE, and LB from one dataset version and displays source-linked
 events and labs flagged by the source. The AI workspace can now choose any of
-these four approved deterministic tools. The subject summary does not infer
+these five approved deterministic tools. The subject summary does not infer
 diagnoses or treatment emergence.
 
 The browser displays the returned method version, eligible measurements,

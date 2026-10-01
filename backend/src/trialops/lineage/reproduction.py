@@ -10,19 +10,30 @@ from uuid import UUID
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from trialops.agent.contracts import ApprovedToolName, PlanStatus, SubjectSafetyToolInput
+from trialops.agent.contracts import (
+    ApprovedToolName,
+    LabRangeToolInput,
+    PlanStatus,
+    SubjectSafetyToolInput,
+)
 from trialops.agent.queries import get_analysis_plan
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
+    to_lab_range_response,
     to_serious_ae_incidence_response,
     to_severe_ae_incidence_response,
     to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.lab_reference_ranges import (
+    LabTestNotFoundError,
+    calculate_stored_lab_reference_range,
+)
 from trialops.analytics.serious_adverse_events import calculate_stored_serious_ae_incidence
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.analytics.subject_safety import (
@@ -140,6 +151,7 @@ async def reproduce_analysis_plan(session: AsyncSession, plan_id: UUID) -> Repro
     try:
         reproduced: (
             AltAbnormalityResponse
+            | LabRangeResponse
             | SevereAeIncidenceResponse
             | SeriousAeIncidenceResponse
             | SubjectSafetySummaryResponse
@@ -147,6 +159,13 @@ async def reproduce_analysis_plan(session: AsyncSession, plan_id: UUID) -> Repro
         if plan.tool_call.name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
             alt_result = await calculate_stored_alt_gt_3x_uln(session, version_id)
             reproduced = to_alt_abnormality_response(version_id, alt_result)
+        elif plan.tool_call.name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE and isinstance(
+            plan.tool_call.arguments, LabRangeToolInput
+        ):
+            lab_result = await calculate_stored_lab_reference_range(
+                session, version_id, plan.tool_call.arguments.test_code
+            )
+            reproduced = to_lab_range_response(version_id, lab_result)
         elif plan.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE:
             severe_result = await calculate_stored_severe_ae_incidence(session, version_id)
             reproduced = to_severe_ae_incidence_response(version_id, severe_result)
@@ -165,7 +184,7 @@ async def reproduce_analysis_plan(session: AsyncSession, plan_id: UUID) -> Repro
                 ReproductionErrorCode.SOURCE_UNAVAILABLE,
                 "The saved tool cannot be reproduced with the current application.",
             )
-    except (DatasetVersionNotFoundError, SubjectNotFoundError) as exc:
+    except (DatasetVersionNotFoundError, LabTestNotFoundError, SubjectNotFoundError) as exc:
         raise ReproductionError(
             ReproductionErrorCode.SOURCE_UNAVAILABLE,
             "The saved analysis source is no longer available.",

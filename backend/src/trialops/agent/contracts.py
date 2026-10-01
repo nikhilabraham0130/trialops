@@ -1,5 +1,6 @@
 """Typed contracts between a language model and trusted application code."""
 
+import re
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -10,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
@@ -23,6 +25,7 @@ class ApprovedToolName(StrEnum):
     """Tool names the current agent is permitted to request."""
 
     CALCULATE_ALT_GT_3X_ULN = "calculate_alt_gt_3x_uln"
+    CHECK_LAB_REFERENCE_RANGE = "check_lab_reference_range"
     COMPARE_SEVERE_AE_INCIDENCE = "compare_severe_ae_incidence"
     COMPARE_SERIOUS_AE_INCIDENCE = "compare_serious_ae_incidence"
     GET_SUBJECT_SAFETY_SUMMARY = "get_subject_safety_summary"
@@ -45,6 +48,7 @@ class ModelPlanProposal(BaseModel):
     tool_name: ApprovedToolName | Literal["unsupported"]
     purpose: NonEmptyText
     subject_id: str | None = Field(default=None, min_length=1, max_length=255)
+    lab_test_code: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,7}$")
 
     @field_validator("purpose")
     @classmethod
@@ -74,6 +78,26 @@ class AltThresholdToolInput(BaseModel):
     dataset_version_id: UUID
 
 
+class LabRangeToolInput(BaseModel):
+    """Exact LBTESTCD selected from the user's visible question."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset_version_id: UUID
+    test_code: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,7}$")
+
+
+def question_mentions_lab_test(question: str, test_code: str) -> bool:
+    return (
+        re.search(
+            rf"(?<![A-Za-z0-9]){re.escape(test_code)}(?![A-Za-z0-9])",
+            question,
+            flags=re.IGNORECASE,
+        )
+        is not None
+    )
+
+
 class SubjectSafetyToolInput(BaseModel):
     """Model-selected subject, bound to an application-selected dataset version."""
 
@@ -89,7 +113,7 @@ class ApprovedToolCall(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: ApprovedToolName
-    arguments: AltThresholdToolInput | SubjectSafetyToolInput
+    arguments: AltThresholdToolInput | LabRangeToolInput | SubjectSafetyToolInput
 
 
 class AnalysisPlan(BaseModel):
@@ -116,6 +140,7 @@ class AnalysisExecution(BaseModel):
     tool_name: ApprovedToolName
     result: (
         AltAbnormalityResponse
+        | LabRangeResponse
         | SevereAeIncidenceResponse
         | SeriousAeIncidenceResponse
         | SubjectSafetySummaryResponse
@@ -136,6 +161,7 @@ class AnalysisPlanDetails(BaseModel):
     tool_call: ApprovedToolCall
     result: (
         AltAbnormalityResponse
+        | LabRangeResponse
         | SevereAeIncidenceResponse
         | SeriousAeIncidenceResponse
         | SubjectSafetySummaryResponse
@@ -172,15 +198,28 @@ def create_analysis_plan(
         raise ValueError("an unsupported question cannot create an executable plan")
 
     if tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
-        if proposal.subject_id is None:
+        if proposal.subject_id is None or proposal.lab_test_code is not None:
             raise ValueError("a subject safety plan requires a subject_id")
-        arguments: AltThresholdToolInput | SubjectSafetyToolInput = SubjectSafetyToolInput(
+        arguments: AltThresholdToolInput | LabRangeToolInput | SubjectSafetyToolInput = (
+            SubjectSafetyToolInput(
+                dataset_version_id=dataset_version_id,
+                subject_id=proposal.subject_id,
+            )
+        )
+    elif tool_name is ApprovedToolName.CHECK_LAB_REFERENCE_RANGE:
+        if (
+            proposal.subject_id is not None
+            or proposal.lab_test_code is None
+            or not question_mentions_lab_test(question, proposal.lab_test_code)
+        ):
+            raise ValueError("the lab test code must appear in the question")
+        arguments = LabRangeToolInput(
             dataset_version_id=dataset_version_id,
-            subject_id=proposal.subject_id,
+            test_code=proposal.lab_test_code,
         )
     else:
-        if proposal.subject_id is not None:
-            raise ValueError("a non-subject tool cannot receive a subject_id")
+        if proposal.subject_id is not None or proposal.lab_test_code is not None:
+            raise ValueError("a non-subject tool cannot receive a subject_id or lab_test_code")
         arguments = AltThresholdToolInput(dataset_version_id=dataset_version_id)
     tool_call = ApprovedToolCall(name=tool_name, arguments=arguments)
     return AnalysisPlan(
