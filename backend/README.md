@@ -227,11 +227,25 @@ safety-population flag are not established by this method. Its read-only API is:
 GET /dataset-versions/{dataset_version_id}/analytics/severe-ae-incidence
 ```
 
+## Recorded serious adverse events by actual arm
+
+`serious-ae-incidence/1.0` uses the source seriousness flag `AESER = Y`, not
+the separate severity field `AESEV`. It reports distinct subjects with one or
+more serious events and the number of serious AE rows by actual arm. It uses
+the same explicit DM denominator and screen-failure exclusion as the severe-AE
+method. This is descriptive, not a treatment-emergent or inferential analysis;
+the API and UI show that timing limitation.
+
+```text
+GET /dataset-versions/{dataset_version_id}/analytics/serious-ae-incidence
+```
+
 ## Agent control foundation
 
-The agent catalog exposes three implemented capabilities:
-`calculate_alt_gt_3x_uln`, `compare_severe_ae_incidence`, and
-`get_subject_safety_summary`. A language model may propose one of these tools
+The agent catalog exposes four implemented capabilities:
+`calculate_alt_gt_3x_uln`, `compare_severe_ae_incidence`,
+`compare_serious_ae_incidence`, and `get_subject_safety_summary`.
+A language model may propose one of these tools
 and provide a short, user-visible purpose, but it cannot supply the
 dataset-version ID. For the subject tool it must also copy an exact `USUBJID`
 from the question. The application binds the proposal to the immutable version

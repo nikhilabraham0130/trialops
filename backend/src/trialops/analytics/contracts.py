@@ -9,6 +9,7 @@ from trialops.analytics.lab_abnormalities import (
     AltAbnormalityResult,
     TimingClassification,
 )
+from trialops.analytics.serious_adverse_events import SeriousAeIncidenceResult
 from trialops.analytics.severe_adverse_events import SevereAeIncidenceResult
 from trialops.analytics.subject_safety import SubjectSafetySummary
 from trialops.validation.findings import FindingSeverity
@@ -131,6 +132,58 @@ def to_severe_ae_incidence_response(
         ),
         evidence=tuple(
             SevereAeEvidenceResponse.model_validate(item, from_attributes=True)
+            for item in result.evidence
+        ),
+    )
+
+
+class SeriousAeArmResponse(BaseModel):
+    arm: str
+    subjects_in_arm: int
+    subjects_with_serious_ae: int
+    serious_ae_event_count: int
+    incidence_percent: Decimal
+
+
+class SeriousAeEvidenceResponse(BaseModel):
+    source_record_number: int
+    unique_subject_id: str
+    arm: str
+    preferred_term: str
+
+
+class SeriousAeIncidenceResponse(BaseModel):
+    """Versioned descriptive seriousness result, separate from severity."""
+
+    dataset_version_id: UUID
+    method_version: str
+    excluded_screen_failure_subjects: int
+    population_definition: str
+    timing_limitation: str
+    arms: tuple[SeriousAeArmResponse, ...]
+    evidence: tuple[SeriousAeEvidenceResponse, ...]
+
+
+def to_serious_ae_incidence_response(
+    dataset_version_id: UUID, result: SeriousAeIncidenceResult
+) -> SeriousAeIncidenceResponse:
+    return SeriousAeIncidenceResponse(
+        dataset_version_id=dataset_version_id,
+        method_version=result.method_version,
+        excluded_screen_failure_subjects=result.excluded_screen_failure_subjects,
+        population_definition=(
+            "DM subjects grouped by actual treatment arm (ACTARM), excluding ACTARM = "
+            "Screen Failure; no safety-population flag or exposure requirement has been applied."
+        ),
+        timing_limitation=(
+            "These are recorded serious AEs (AESER = Y), not confirmed treatment-emergent "
+            "events. Seriousness is separate from AE severity (AESEV)."
+        ),
+        arms=tuple(
+            SeriousAeArmResponse.model_validate(arm, from_attributes=True) for arm in result.arms
+        ),
+        evidence=tuple(
+            SeriousAeEvidenceResponse.model_validate(item, from_attributes=True)
             for item in result.evidence
         ),
     )

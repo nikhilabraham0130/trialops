@@ -54,6 +54,27 @@ export interface SevereAeIncidenceResponse {
   }[];
 }
 
+export interface SeriousAeIncidenceResponse {
+  dataset_version_id: string;
+  method_version: string;
+  excluded_screen_failure_subjects: number;
+  population_definition: string;
+  timing_limitation: string;
+  arms: {
+    arm: string;
+    subjects_in_arm: number;
+    subjects_with_serious_ae: number;
+    serious_ae_event_count: number;
+    incidence_percent: string;
+  }[];
+  evidence: {
+    source_record_number: number;
+    unique_subject_id: string;
+    arm: string;
+    preferred_term: string;
+  }[];
+}
+
 export interface SubjectSafetySummaryResponse {
   dataset_version_id: string;
   method_version: string;
@@ -121,6 +142,20 @@ export async function getSevereAeIncidence(
     throw new Error(`Severe-AE analytics request failed with status ${response.status}.`);
   }
   return (await response.json()) as SevereAeIncidenceResponse;
+}
+
+export async function getSeriousAeIncidence(
+  datasetVersionId: string,
+  signal?: AbortSignal,
+): Promise<SeriousAeIncidenceResponse> {
+  const response = await fetch(
+    `${apiUrl}/dataset-versions/${encodeURIComponent(datasetVersionId)}/analytics/serious-ae-incidence`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(`Serious-AE analytics request failed with status ${response.status}.`);
+  }
+  return (await response.json()) as SeriousAeIncidenceResponse;
 }
 
 export async function getSubjectSafetySummary(

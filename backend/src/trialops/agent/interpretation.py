@@ -20,12 +20,14 @@ from trialops.agent.interpretation_model import (
 )
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
 )
 
 PROMPT_VERSION = "alt-result-interpretation/1.0"
 SEVERE_AE_PROMPT_VERSION = "severe-ae-result-interpretation/1.0"
+SERIOUS_AE_PROMPT_VERSION = "serious-ae-result-interpretation/1.0"
 SUBJECT_SAFETY_PROMPT_VERSION = "subject-safety-interpretation/1.0"
 _NUMBER_PATTERN = re.compile(r"(?<![\d.])[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?![\d.])")
 
@@ -47,7 +49,10 @@ class InterpretationError(RuntimeError):
 
 
 def build_numeric_facts(
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse,
+    result: AltAbnormalityResponse
+    | SevereAeIncidenceResponse
+    | SeriousAeIncidenceResponse
+    | SubjectSafetySummaryResponse,
 ) -> tuple[NumericFact, ...]:
     """Select the aggregate numeric facts the model is permitted to cite."""
     if isinstance(result, SevereAeIncidenceResponse):
@@ -79,6 +84,34 @@ def build_numeric_facts(
                 )
             )
         return tuple(facts)
+    if isinstance(result, SeriousAeIncidenceResponse):
+        serious_facts: list[NumericFact] = [
+            NumericFact(
+                name="excluded_screen_failure_subjects",
+                value=Decimal(result.excluded_screen_failure_subjects),
+            )
+        ]
+        for index, serious_arm in enumerate(result.arms, start=1):
+            prefix = f"arm_{index}"
+            serious_facts.extend(
+                (
+                    NumericFact(
+                        name=f"{prefix}_subjects_in_arm", value=Decimal(serious_arm.subjects_in_arm)
+                    ),
+                    NumericFact(
+                        name=f"{prefix}_subjects_with_serious_ae",
+                        value=Decimal(serious_arm.subjects_with_serious_ae),
+                    ),
+                    NumericFact(
+                        name=f"{prefix}_serious_ae_event_count",
+                        value=Decimal(serious_arm.serious_ae_event_count),
+                    ),
+                    NumericFact(
+                        name=f"{prefix}_incidence_percent", value=serious_arm.incidence_percent
+                    ),
+                )
+            )
+        return tuple(serious_facts)
     if isinstance(result, SubjectSafetySummaryResponse):
         return (
             NumericFact(name="ae_event_count", value=Decimal(result.ae_event_count)),
@@ -161,7 +194,10 @@ async def generate_grounded_interpretation(
     *,
     question: str,
     purpose: str,
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse,
+    result: AltAbnormalityResponse
+    | SevereAeIncidenceResponse
+    | SeriousAeIncidenceResponse
+    | SubjectSafetySummaryResponse,
 ) -> VerifiedInterpretation:
     """Request, validate, and numerically verify one AI explanation."""
     if not model.model_id.strip():
@@ -172,7 +208,8 @@ async def generate_grounded_interpretation(
 
     numeric_facts = build_numeric_facts(result)
     is_severe_ae = isinstance(result, SevereAeIncidenceResponse)
-    if isinstance(result, SevereAeIncidenceResponse):
+    is_serious_ae = isinstance(result, SeriousAeIncidenceResponse)
+    if isinstance(result, (SevereAeIncidenceResponse, SeriousAeIncidenceResponse)):
         warnings: tuple[str, ...] = (result.population_definition,)
         group_labels = tuple(arm.arm for arm in result.arms)
     elif isinstance(result, SubjectSafetySummaryResponse):
@@ -218,6 +255,8 @@ async def generate_grounded_interpretation(
         prompt_version=(
             SEVERE_AE_PROMPT_VERSION
             if is_severe_ae
+            else SERIOUS_AE_PROMPT_VERSION
+            if is_serious_ae
             else SUBJECT_SAFETY_PROMPT_VERSION
             if isinstance(result, SubjectSafetySummaryResponse)
             else PROMPT_VERSION

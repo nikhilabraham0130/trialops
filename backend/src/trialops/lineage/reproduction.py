@@ -14,13 +14,16 @@ from trialops.agent.contracts import ApprovedToolName, PlanStatus, SubjectSafety
 from trialops.agent.queries import get_analysis_plan
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
+    to_serious_ae_incidence_response,
     to_severe_ae_incidence_response,
     to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.serious_adverse_events import calculate_stored_serious_ae_incidence
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.analytics.subject_safety import (
     SubjectNotFoundError,
@@ -136,7 +139,10 @@ async def reproduce_analysis_plan(session: AsyncSession, plan_id: UUID) -> Repro
     version_id = plan.dataset_version_id
     try:
         reproduced: (
-            AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse
+            AltAbnormalityResponse
+            | SevereAeIncidenceResponse
+            | SeriousAeIncidenceResponse
+            | SubjectSafetySummaryResponse
         )
         if plan.tool_call.name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
             alt_result = await calculate_stored_alt_gt_3x_uln(session, version_id)
@@ -144,6 +150,9 @@ async def reproduce_analysis_plan(session: AsyncSession, plan_id: UUID) -> Repro
         elif plan.tool_call.name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE:
             severe_result = await calculate_stored_severe_ae_incidence(session, version_id)
             reproduced = to_severe_ae_incidence_response(version_id, severe_result)
+        elif plan.tool_call.name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE:
+            serious_result = await calculate_stored_serious_ae_incidence(session, version_id)
+            reproduced = to_serious_ae_incidence_response(version_id, serious_result)
         elif plan.tool_call.name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY and isinstance(
             plan.tool_call.arguments, SubjectSafetyToolInput
         ):

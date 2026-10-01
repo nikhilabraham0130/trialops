@@ -23,6 +23,7 @@ _TOOL_INPUT_MODELS: MappingProxyType[ApprovedToolName, type[BaseModel]] = Mappin
     {
         ApprovedToolName.CALCULATE_ALT_GT_3X_ULN: AltThresholdToolInput,
         ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE: AltThresholdToolInput,
+        ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE: AltThresholdToolInput,
         ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY: SubjectSafetyToolInput,
     }
 )
@@ -39,6 +40,12 @@ _TOOL_DESCRIPTIONS: MappingProxyType[ApprovedToolName, str] = MappingProxyType(
             "treatment arm for one dataset version. Report denominators, subject incidence, "
             "and separate event counts. This is descriptive, not treatment-emergent or serious-AE "
             "incidence."
+        ),
+        ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE: (
+            "Count distinct subjects with one or more recorded AESER = Y serious adverse "
+            "events by actual treatment arm for one dataset version. Report denominators, "
+            "subject incidence, and separate event counts. This is descriptive, not a "
+            "severity or treatment-emergent analysis."
         ),
         ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY: (
             "Show a source-linked safety summary for one explicitly named USUBJID in one "

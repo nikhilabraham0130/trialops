@@ -20,13 +20,16 @@ from trialops.agent.contracts import (
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
+    to_serious_ae_incidence_response,
     to_severe_ae_incidence_response,
     to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.serious_adverse_events import calculate_stored_serious_ae_incidence
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.analytics.subject_safety import (
     SubjectNotFoundError,
@@ -104,6 +107,7 @@ async def execute_confirmed_plan(
         not in {
             ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
             ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+            ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE,
             ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
         }
         or arguments.dataset_version_id != record.dataset_version_id
@@ -116,7 +120,10 @@ async def execute_confirmed_plan(
 
     try:
         structured_result: (
-            AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse
+            AltAbnormalityResponse
+            | SevereAeIncidenceResponse
+            | SeriousAeIncidenceResponse
+            | SubjectSafetySummaryResponse
         )
         if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
             result = await calculate_stored_alt_gt_3x_uln(session, record.dataset_version_id)
@@ -127,6 +134,13 @@ async def execute_confirmed_plan(
             )
             structured_result = to_severe_ae_incidence_response(
                 record.dataset_version_id, severe_result
+            )
+        elif record.tool_name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE:
+            serious_result = await calculate_stored_serious_ae_incidence(
+                session, record.dataset_version_id
+            )
+            structured_result = to_serious_ae_incidence_response(
+                record.dataset_version_id, serious_result
             )
         elif record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
             if not isinstance(arguments, SubjectSafetyToolInput):

@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
 )
@@ -23,6 +24,7 @@ class ApprovedToolName(StrEnum):
 
     CALCULATE_ALT_GT_3X_ULN = "calculate_alt_gt_3x_uln"
     COMPARE_SEVERE_AE_INCIDENCE = "compare_severe_ae_incidence"
+    COMPARE_SERIOUS_AE_INCIDENCE = "compare_serious_ae_incidence"
     GET_SUBJECT_SAFETY_SUMMARY = "get_subject_safety_summary"
 
 
@@ -112,7 +114,12 @@ class AnalysisExecution(BaseModel):
     plan_id: UUID
     status: Literal[PlanStatus.EXECUTED]
     tool_name: ApprovedToolName
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse
+    result: (
+        AltAbnormalityResponse
+        | SevereAeIncidenceResponse
+        | SeriousAeIncidenceResponse
+        | SubjectSafetySummaryResponse
+    )
 
 
 class AnalysisPlanDetails(BaseModel):
@@ -127,7 +134,13 @@ class AnalysisPlanDetails(BaseModel):
     status: PlanStatus
     confirmation_required: bool
     tool_call: ApprovedToolCall
-    result: AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse | None
+    result: (
+        AltAbnormalityResponse
+        | SevereAeIncidenceResponse
+        | SeriousAeIncidenceResponse
+        | SubjectSafetySummaryResponse
+        | None
+    )
     interpretation: StoredInterpretation | None
     created_at: datetime
     executed_at: datetime | None

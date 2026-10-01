@@ -20,6 +20,7 @@ from trialops.agent.interpretation_contracts import StoredInterpretation
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
 )
@@ -66,6 +67,7 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
         not in {
             ApprovedToolName.CALCULATE_ALT_GT_3X_ULN,
             ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE,
+            ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE,
             ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY,
         }
         or arguments.dataset_version_id != record.dataset_version_id
@@ -74,13 +76,19 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
 
     try:
         result: (
-            AltAbnormalityResponse | SevereAeIncidenceResponse | SubjectSafetySummaryResponse | None
+            AltAbnormalityResponse
+            | SevereAeIncidenceResponse
+            | SeriousAeIncidenceResponse
+            | SubjectSafetySummaryResponse
+            | None
         ) = None
         if record.result is not None:
             if record.tool_name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN:
                 result = AltAbnormalityResponse.model_validate(record.result)
             elif record.tool_name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY:
                 result = SubjectSafetySummaryResponse.model_validate(record.result)
+            elif record.tool_name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE:
+                result = SeriousAeIncidenceResponse.model_validate(record.result)
             else:
                 result = SevereAeIncidenceResponse.model_validate(record.result)
     except ValidationError as exc:

@@ -16,6 +16,11 @@ from trialops.analytics.lab_abnormalities import (
     AltExceedance,
     TimingClassification,
 )
+from trialops.analytics.serious_adverse_events import (
+    SeriousAeArmResult,
+    SeriousAeEvidence,
+    SeriousAeIncidenceResult,
+)
 from trialops.analytics.severe_adverse_events import (
     SevereAeArmResult,
     SevereAeEvidence,
@@ -225,6 +230,40 @@ def test_severe_ae_endpoint_returns_404_for_unknown_version(
 
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "DATASET_VERSION_NOT_FOUND"
+
+
+def test_serious_ae_endpoint_serializes_separate_serious_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version_id = uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def fake_calculation(
+        _session: AsyncSession, requested_version_id: object
+    ) -> SeriousAeIncidenceResult:
+        assert requested_version_id == version_id
+        return SeriousAeIncidenceResult(
+            method_version="serious-ae-incidence/1.0",
+            excluded_screen_failure_subjects=2,
+            arms=(SeriousAeArmResult("Placebo", 3, 1, 2, Decimal("33.33")),),
+            evidence=(SeriousAeEvidence(42, "SUBJECT-001", "Placebo", "Headache"),),
+        )
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.calculate_stored_serious_ae_incidence",
+        fake_calculation,
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+    response = asyncio.run(
+        _request(application, f"/dataset-versions/{version_id}/analytics/serious-ae-incidence")
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["arms"][0]["subjects_with_serious_ae"] == 1
+    assert body["arms"][0]["serious_ae_event_count"] == 2
+    assert body["evidence"][0]["source_record_number"] == 42
+    assert "AESER = Y" in body["timing_limitation"]
+    assert "not confirmed treatment-emergent" in body["timing_limitation"]
 
 
 def test_subject_safety_endpoint_returns_source_linked_summary(

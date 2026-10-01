@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from trialops.agent.fake_interpretation_model import FakeInterpretationModel
 from trialops.agent.interpretation import (
     PROMPT_VERSION,
+    SERIOUS_AE_PROMPT_VERSION,
     SEVERE_AE_PROMPT_VERSION,
     SUBJECT_SAFETY_PROMPT_VERSION,
     InterpretationError,
@@ -25,6 +26,8 @@ from trialops.agent.interpretation_contracts import (
 from trialops.agent.interpretation_model import InterpretationModelError
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeArmResponse,
+    SeriousAeIncidenceResponse,
     SevereAeArmResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
@@ -193,6 +196,52 @@ def test_severe_ae_interpretation_rejects_an_uncomputed_percentage() -> None:
             )
         )
     assert raised.value.code is InterpretationErrorCode.UNGROUNDED_NUMERIC_CLAIM
+
+
+def test_serious_ae_interpretation_uses_serious_counts_and_timing_warning() -> None:
+    result = SeriousAeIncidenceResponse(
+        dataset_version_id=UUID("00000000-0000-0000-0000-000000000001"),
+        method_version="serious-ae-incidence/1.0",
+        excluded_screen_failure_subjects=2,
+        population_definition="DM subjects grouped by ACTARM.",
+        timing_limitation="Not confirmed treatment-emergent.",
+        arms=(
+            SeriousAeArmResponse(
+                arm="Placebo",
+                subjects_in_arm=3,
+                subjects_with_serious_ae=1,
+                serious_ae_event_count=2,
+                incidence_percent=Decimal("33.33"),
+            ),
+        ),
+        evidence=(),
+    )
+    model = FakeInterpretationModel(
+        '{"summary":"In Placebo, 1 of 3 subjects had a serious AE (33.33%), with 2 events.",'
+        '"numeric_claims":['
+        '{"field":"arm_1_subjects_with_serious_ae","value":1},'
+        '{"field":"arm_1_subjects_in_arm","value":3},'
+        '{"field":"arm_1_incidence_percent","value":"33.33"},'
+        '{"field":"arm_1_serious_ae_event_count","value":2}]}'
+    )
+    verified = asyncio.run(
+        generate_grounded_interpretation(
+            model,
+            question="Compare recorded serious AEs.",
+            purpose="Summarize by arm.",
+            result=result,
+        )
+    )
+    assert verified.prompt_version == SERIOUS_AE_PROMPT_VERSION
+    request = model.requests[0]
+    assert request.timing_limitation == "Not confirmed treatment-emergent."
+    assert {fact.name for fact in request.numeric_facts} == {
+        "excluded_screen_failure_subjects",
+        "arm_1_subjects_in_arm",
+        "arm_1_subjects_with_serious_ae",
+        "arm_1_serious_ae_event_count",
+        "arm_1_incidence_percent",
+    }
 
 
 def test_numeric_claim_rejects_nonfinite_value() -> None:

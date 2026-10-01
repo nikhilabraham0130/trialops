@@ -7,6 +7,7 @@ import {
 import { getStudies, type StudyListResponse } from "./api/studies";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { SevereAeCard } from "./SevereAeCard";
+import { SeriousAeCard } from "./SeriousAeCard";
 import { SQLWorkbench } from "./SQLWorkbench";
 import { SubjectSafetyCard } from "./SubjectSafetyCard";
 import "./styles.css";
@@ -261,6 +262,7 @@ export function App({
                             </section>
                           )}
                           <SevereAeCard datasetVersionId={version.id} />
+                          <SeriousAeCard datasetVersionId={version.id} />
                           <SubjectSafetyCard datasetVersionId={version.id} />
                           <SQLWorkbench datasetVersionId={version.id} />
                         </div>

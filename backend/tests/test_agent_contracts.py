@@ -19,7 +19,7 @@ from trialops.agent.tools import get_approved_tool_specifications
 def test_catalog_exposes_only_implemented_clinical_tools() -> None:
     specifications = get_approved_tool_specifications()
 
-    assert len(specifications) == 3
+    assert len(specifications) == 4
     specification = specifications[0]
     assert specification.name is ApprovedToolName.CALCULATE_ALT_GT_3X_ULN
     assert specification.requires_confirmation
@@ -33,7 +33,12 @@ def test_catalog_exposes_only_implemented_clinical_tools() -> None:
     assert severe.requires_confirmation
     assert "not treatment-emergent" in severe.description
     assert severe.input_schema["required"] == ["dataset_version_id"]
-    subject = specifications[2]
+    serious = specifications[2]
+    assert serious.name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
+    assert serious.requires_confirmation
+    assert "AESER = Y" in serious.description
+    assert serious.input_schema["required"] == ["dataset_version_id"]
+    subject = specifications[3]
     assert subject.name is ApprovedToolName.GET_SUBJECT_SAFETY_SUMMARY
     assert subject.requires_confirmation
     assert set(subject.input_schema["required"]) == {"dataset_version_id", "subject_id"}

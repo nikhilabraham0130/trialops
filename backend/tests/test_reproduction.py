@@ -18,8 +18,17 @@ from trialops.agent.contracts import (
     PlanStatus,
     SubjectSafetyToolInput,
 )
-from trialops.analytics.contracts import AltAbnormalityResponse, SubjectSafetySummaryResponse
+from trialops.analytics.contracts import (
+    AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
+    SubjectSafetySummaryResponse,
+    to_serious_ae_incidence_response,
+)
 from trialops.analytics.lab_abnormalities import AltAbnormalityResult
+from trialops.analytics.serious_adverse_events import (
+    SeriousAeArmResult,
+    SeriousAeIncidenceResult,
+)
 from trialops.analytics.subject_safety import SubjectSafetySummary
 from trialops.lineage.reproduction import (
     ReproductionError,
@@ -150,6 +159,44 @@ def test_reproduction_reruns_alt_with_saved_version(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr("trialops.lineage.reproduction.get_analysis_plan", fake_plan)
     monkeypatch.setattr(
         "trialops.lineage.reproduction.calculate_stored_alt_gt_3x_uln", fake_calculation
+    )
+    comparison = asyncio.run(reproduce_analysis_plan(cast(AsyncSession, object()), plan.id))
+    assert comparison.status == "EXACT_MATCH"
+
+
+def test_reproduction_reruns_serious_ae_with_saved_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan()
+    result = SeriousAeIncidenceResult(
+        method_version="serious-ae-incidence/1.0",
+        excluded_screen_failure_subjects=0,
+        arms=(SeriousAeArmResult("Placebo", 3, 1, 2, Decimal("33.33")),),
+        evidence=(),
+    )
+    plan = plan.model_copy(
+        update={
+            "tool_call": ApprovedToolCall(
+                name=ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE,
+                arguments=AltThresholdToolInput(dataset_version_id=plan.dataset_version_id),
+            ),
+            "result": to_serious_ae_incidence_response(plan.dataset_version_id, result),
+        }
+    )
+    assert isinstance(plan.result, SeriousAeIncidenceResponse)
+
+    async def fake_plan(_session: AsyncSession, _plan_id: object) -> AnalysisPlanDetails:
+        return plan
+
+    async def fake_calculation(
+        _session: AsyncSession, version_id: object
+    ) -> SeriousAeIncidenceResult:
+        assert version_id == plan.dataset_version_id
+        return result
+
+    monkeypatch.setattr("trialops.lineage.reproduction.get_analysis_plan", fake_plan)
+    monkeypatch.setattr(
+        "trialops.lineage.reproduction.calculate_stored_serious_ae_incidence", fake_calculation
     )
     comparison = asyncio.run(reproduce_analysis_plan(cast(AsyncSession, object()), plan.id))
     assert comparison.status == "EXACT_MATCH"

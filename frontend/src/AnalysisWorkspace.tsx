@@ -14,14 +14,18 @@ import {
   type ReproductionComparison,
   type StoredInterpretation,
 } from "./api/agent";
-import type { AltAbnormalityResponse } from "./api/analytics";
+import type { AltAbnormalityResponse, SeriousAeIncidenceResponse } from "./api/analytics";
 import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
 import { SevereAeResult } from "./SevereAeCard";
+import { SeriousAeResult } from "./SeriousAeCard";
 import { SubjectSafetyResult } from "./SubjectSafetyCard";
 import { ReviewPanel } from "./ReviewPanel";
 import { AuditPanel } from "./AuditPanel";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
+function isSeriousAeResult(result: NonNullable<PlanView["result"]>): result is SeriousAeIncidenceResponse {
+  return result.method_version.startsWith("serious-ae-incidence/");
+}
 type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing" | "reproducing" | "history";
 
 interface AnalysisWorkspaceProps {
@@ -284,9 +288,9 @@ export function AnalysisWorkspace({
         <label htmlFor="safety-question">Your question</label>
         <textarea id="safety-question" rows={3} maxLength={2000} value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Were any ALT measurements elevated, which arm had severe AEs, or summarize subject 01-701-1015?" />
+          placeholder="Were any ALT measurements elevated, which arm had serious AEs, or summarize subject 01-701-1015?" />
         <div className="form-footer">
-          <span>Supports ALT above 3 × ULN, severe AEs by actual arm, and named-subject safety summaries.</span>
+          <span>Supports ALT above 3 × ULN, severe and serious AEs by actual arm, and named-subject safety summaries.</span>
           <button className="analysis-button" type="submit" disabled={busy || !question.trim() || !selectedVersionId}>
             {step === "planning" ? "Preparing plan..." : "Propose analysis"}
           </button>
@@ -307,6 +311,8 @@ export function AnalysisWorkspace({
                     ? "ALT threshold calculation"
                     : plan.tool_call.name === "compare_severe_ae_incidence"
                       ? "Severe AE incidence by arm"
+                      : plan.tool_call.name === "compare_serious_ae_incidence"
+                        ? "Serious AE incidence by arm"
                       : "Subject safety summary"}
                 </h3>
               </div>
@@ -328,7 +334,9 @@ export function AnalysisWorkspace({
             )}
           </section>
 
-          {plan.result && ("arms" in plan.result
+          {plan.result && (isSeriousAeResult(plan.result)
+            ? <SeriousAeResult result={plan.result} />
+            : "arms" in plan.result
             ? <SevereAeResult result={plan.result} />
             : "unique_subject_id" in plan.result
               ? <SubjectSafetyResult result={plan.result} />

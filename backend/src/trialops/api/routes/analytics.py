@@ -6,13 +6,16 @@ from fastapi import APIRouter, HTTPException, status
 
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
+    to_serious_ae_incidence_response,
     to_severe_ae_incidence_response,
     to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.serious_adverse_events import calculate_stored_serious_ae_incidence
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.analytics.subject_safety import (
     SubjectNotFoundError,
@@ -67,6 +70,26 @@ async def get_severe_ae_incidence(
             detail={"code": "DATASET_VERSION_NOT_FOUND", "message": str(exc)},
         ) from exc
     return to_severe_ae_incidence_response(dataset_version_id, result)
+
+
+@router.get(
+    "/{dataset_version_id}/analytics/serious-ae-incidence",
+    response_model=SeriousAeIncidenceResponse,
+    summary="Count subjects with source-flagged serious AEs by actual treatment arm",
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Dataset version not found"}},
+)
+async def get_serious_ae_incidence(
+    dataset_version_id: UUID, session: DatabaseSession
+) -> SeriousAeIncidenceResponse:
+    """Use AESER, not AESEV, for a descriptive seriousness calculation."""
+    try:
+        result = await calculate_stored_serious_ae_incidence(session, dataset_version_id)
+    except DatasetVersionNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "DATASET_VERSION_NOT_FOUND", "message": str(exc)},
+        ) from exc
+    return to_serious_ae_incidence_response(dataset_version_id, result)
 
 
 @router.get(

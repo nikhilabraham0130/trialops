@@ -18,6 +18,10 @@ from trialops.agent.execution import (
 from trialops.agent.models import AgentPlanRecord
 from trialops.analytics.contracts import SubjectSafetySummaryResponse
 from trialops.analytics.lab_abnormalities import AltAbnormalityResult
+from trialops.analytics.serious_adverse_events import (
+    SeriousAeArmResult,
+    SeriousAeIncidenceResult,
+)
 from trialops.analytics.severe_adverse_events import (
     SevereAeArmResult,
     SevereAeIncidenceResult,
@@ -143,6 +147,34 @@ def test_confirmation_executes_and_persists_selected_severe_ae_tool(
 
     assert execution.tool_name is ApprovedToolName.COMPARE_SEVERE_AE_INCIDENCE
     assert execution.result.method_version == "severe-ae-incidence/1.0"
+    assert record.result == execution.result.model_dump(mode="json")
+    assert fake.commit_calls == 1
+
+
+def test_confirmation_executes_and_persists_selected_serious_ae_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record()
+    record.tool_name = ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
+    fake = _FakeSession(record)
+
+    async def calculation(
+        _session: AsyncSession, requested_version_id: UUID
+    ) -> SeriousAeIncidenceResult:
+        assert requested_version_id == record.dataset_version_id
+        return SeriousAeIncidenceResult(
+            method_version="serious-ae-incidence/1.0",
+            excluded_screen_failure_subjects=0,
+            arms=(SeriousAeArmResult("Placebo", 3, 1, 2, Decimal("33.33")),),
+            evidence=(),
+        )
+
+    monkeypatch.setattr(
+        "trialops.agent.execution.calculate_stored_serious_ae_incidence", calculation
+    )
+    execution = asyncio.run(execute_confirmed_plan(cast(AsyncSession, fake), record.id))
+    assert execution.tool_name is ApprovedToolName.COMPARE_SERIOUS_AE_INCIDENCE
+    assert execution.result.method_version == "serious-ae-incidence/1.0"
     assert record.result == execution.result.model_dump(mode="json")
     assert fake.commit_calls == 1
 
