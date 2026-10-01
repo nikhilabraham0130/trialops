@@ -20,6 +20,7 @@ from trialops.governance.contracts import (
     PolicyStatus,
 )
 from trialops.governance.policies import evaluate_analysis_governance
+from trialops.reviews.contracts import ReviewState
 
 
 def _plan(
@@ -92,6 +93,17 @@ def test_executed_grounded_analysis_requires_independent_review() -> None:
     }
     assert evaluation.findings[-1].blocking is True
     assert evaluation.findings[-1].message == "Independent reviewer approval is required."
+
+
+def test_independent_approval_satisfies_final_governance_check() -> None:
+    plan = _plan(PlanStatus.EXECUTED, with_interpretation=True)
+    plan = plan.model_copy(update={"review_state": ReviewState.APPROVED})
+
+    evaluation = evaluate_analysis_governance(plan)
+
+    assert evaluation.decision is GovernanceDecision.APPROVED
+    assert evaluation.findings[-1].status is PolicyStatus.PASS
+    assert evaluation.findings[-1].blocking is False
 
 
 def test_unexecuted_analysis_is_not_ready_for_review() -> None:

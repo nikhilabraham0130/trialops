@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from trialops.agent.contracts import ApprovedToolName, PlanStatus
 from trialops.db.base import Base
+from trialops.reviews.contracts import ReviewState
 
 
 class AgentPlanRecord(Base):
@@ -22,6 +23,16 @@ class AgentPlanRecord(Base):
         CheckConstraint(
             "interpretation IS NULL OR jsonb_typeof(interpretation) = 'object'",
             name="interpretation_is_object",
+        ),
+        CheckConstraint(
+            "review_state IN ('DRAFT', 'PENDING_REVIEW', 'APPROVED', "
+            "'CHANGES_REQUESTED', 'REJECTED')",
+            name="valid_review_state",
+        ),
+        CheckConstraint(
+            "(submitted_by IS NULL AND submitted_at IS NULL) OR "
+            "(submitted_by IS NOT NULL AND submitted_at IS NOT NULL)",
+            name="submission_fields_together",
         ),
     )
 
@@ -60,3 +71,6 @@ class AgentPlanRecord(Base):
         server_default=func.now(),
     )
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_state: Mapped[str] = mapped_column(String(32), default=ReviewState.DRAFT.value)
+    submitted_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -90,6 +90,9 @@ def _record(status: PlanStatus = PlanStatus.EXECUTED) -> AgentPlanRecord:
         tool_arguments={"dataset_version_id": str(version_id)},
         result=_result(version_id) if status is PlanStatus.EXECUTED else None,
         interpretation=None,
+        review_state="DRAFT",
+        submitted_by=None,
+        submitted_at=None,
         created_at=datetime(2026, 9, 23, 12, tzinfo=UTC),
         executed_at=(
             datetime(2026, 9, 23, 12, 1, tzinfo=UTC) if status is PlanStatus.EXECUTED else None

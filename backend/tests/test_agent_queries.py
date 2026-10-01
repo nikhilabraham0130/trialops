@@ -64,6 +64,9 @@ def _record(status: PlanStatus = PlanStatus.AWAITING_CONFIRMATION) -> AgentPlanR
         tool_arguments={"dataset_version_id": str(dataset_version_id)},
         result=_result(dataset_version_id) if status is PlanStatus.EXECUTED else None,
         interpretation=None,
+        review_state="DRAFT",
+        submitted_by=None,
+        submitted_at=None,
         created_at=datetime(2026, 9, 22, 12, tzinfo=UTC),
         executed_at=(
             datetime(2026, 9, 22, 12, 1, tzinfo=UTC) if status is PlanStatus.EXECUTED else None

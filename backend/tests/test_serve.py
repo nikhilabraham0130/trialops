@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 import pytest
+import uvicorn
 
 from trialops import serve
 
@@ -26,7 +27,7 @@ def test_launcher_passes_windows_selector_factory_to_uvicorn(
         calls.append((app, kwargs))
 
     monkeypatch.setattr(sys, "argv", ["trialops.serve", "--env-file", "../.env", "--port", "8001"])
-    monkeypatch.setattr(serve.uvicorn, "run", fake_run)
+    monkeypatch.setattr(uvicorn, "run", fake_run)
     serve.main()
 
     assert calls[0][0] == "trialops.main:app"

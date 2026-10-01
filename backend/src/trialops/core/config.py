@@ -3,7 +3,7 @@
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field, HttpUrl, SecretStr, field_validator
+from pydantic import AliasChoices, Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -68,6 +68,21 @@ class Settings(BaseSettings):
         default="deepseek-flash",
         validation_alias=AliasChoices("TRIALOPS_LLM_MODEL", "DEEPSEEK_MODEL"),
     )
+    analyst_token: SecretStr | None = None
+    reviewer_token: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def validate_review_tokens(self) -> "Settings":
+        """Require two distinct, reasonably long local role tokens when review is enabled."""
+        tokens = (self.analyst_token, self.reviewer_token)
+        if all(token is None for token in tokens):
+            return self
+        if any(token is None for token in tokens):
+            raise ValueError("both local review role tokens must be configured together")
+        values = tuple(token.get_secret_value() for token in tokens if token is not None)
+        if any(len(value) < 32 for value in values) or values[0] == values[1]:
+            raise ValueError("local review role tokens must be distinct and at least 32 characters")
+        return self
 
     @field_validator("database_url")
     @classmethod

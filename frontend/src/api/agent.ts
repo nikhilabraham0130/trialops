@@ -39,7 +39,7 @@ export interface AnalysisExecution {
 }
 
 export interface GovernanceEvaluation {
-  decision: "NOT_READY_FOR_REVIEW" | "REVIEW_REQUIRED";
+  decision: "NOT_READY_FOR_REVIEW" | "REVIEW_REQUIRED" | "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
   findings: {
     policy_code: "DETERMINISTIC_RESULT_REQUIRED" | "NUMERIC_GROUNDING_REQUIRED" | "INDEPENDENT_REVIEW_REQUIRED";
     status: "PASS" | "FAIL";

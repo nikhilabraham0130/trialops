@@ -39,8 +39,8 @@ The initial analytical workflows will cover:
 - Subject-level safety summaries
 
 The product includes dataset validation and versioning, a bounded text-to-SQL
-drafting flow, a tool-using analysis agent, evidence grounding, and deterministic
-reproduction. Human review and complete audit history are still planned.
+drafting flow, a tool-using analysis agent, evidence grounding, deterministic
+reproduction, and local independent review. Wider audit coverage is still planned.
 
 ## Data approach
 
@@ -73,9 +73,11 @@ dataset version and compares the structured result field by field. A manual SQL
 workbench accepts a limited read-only SELECT against version-filtered clinical
 views, with database permissions, a timeout, and a row cap. The AI can draft a
 query from a question, but the user must review and explicitly run it.
+An analyst can submit a grounded analysis, and a separate reviewer can approve,
+reject, or request changes using backend-checked local role tokens.
 
-This is not a complete governed MVP yet. Independent review, full audit history,
-SQL audit history and a broader clinical tool catalog remain
+This is not a complete governed MVP yet. Full audit history, SQL audit history,
+production authentication, and a broader clinical tool catalog remain
 to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer

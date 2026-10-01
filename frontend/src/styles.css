@@ -582,6 +582,30 @@ h1 {
   line-height: 1.5;
 }
 
+.review-label {
+  display: block;
+  margin: 12px 0 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.governance-panel input[type="password"],
+.governance-panel textarea {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid #c7d8cf;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font: inherit;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .validation-findings {
   margin: 14px 0;
   border-left: 3px solid #c78d2d;

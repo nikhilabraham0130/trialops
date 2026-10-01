@@ -31,6 +31,8 @@ def test_metadata_registers_foundational_catalog_tables() -> None:
         "lb_result",
         "agent_plan",
         "reproduction_run",
+        "review_event",
+        "audit_event",
     }
 
 
@@ -210,4 +212,10 @@ def test_agent_plans_are_versioned_and_restricted_to_approved_tools() -> None:
     assert isinstance(tool_type, Enum)
     assert tool_type.enums == [name.value for name in ApprovedToolName]
     nullable_columns = {column.name for column in agent_plan.columns if column.nullable}
-    assert nullable_columns == {"result", "interpretation", "executed_at"}
+    assert nullable_columns == {
+        "result",
+        "interpretation",
+        "executed_at",
+        "submitted_by",
+        "submitted_at",
+    }

@@ -25,6 +25,9 @@ class GovernanceDecision(StrEnum):
 
     NOT_READY_FOR_REVIEW = "NOT_READY_FOR_REVIEW"
     REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    APPROVED = "APPROVED"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
+    REJECTED = "REJECTED"
 
 
 class GovernanceFinding(BaseModel):

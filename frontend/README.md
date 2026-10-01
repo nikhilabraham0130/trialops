@@ -28,6 +28,11 @@ read-only `GET /agent/plans/{id}/governance` checklist. After execution, the
 Reproduce result action calls `POST /agent/plans/{id}/reproduce`, stores a
 comparison, and displays an exact match or field-level differences. A separate
 history action loads prior checks without changing the saved analysis.
+The independent-review panel loads the plan's saved review state and history on
+demand. When local role tokens are configured, enter the analyst token to submit
+a completed, grounded analysis, then the reviewer token to decide. The browser
+clears a token after a successful action; the backend determines the role from
+the token and prevents self-approval. See the backend README for token setup.
 The study catalog also includes a manual governed SQL workbench. It sends a
 candidate SELECT to the backend and displays only rows returned from one of
 three approved, dataset-version-filtered clinical views. The browser does not
@@ -36,8 +41,7 @@ those limits. The optional AI drafting action translates a question into an
 unexecuted proposal. The user reviews the SQL and clicks Run separately.
 Recheck governance after
 execution or interpretation because the saved state has changed. A decision of
-`REVIEW_REQUIRED` does not mean approved; independent review is not implemented
-in the demo yet. Planning and explanation require a configured AI provider;
+`REVIEW_REQUIRED` does not mean approved. Planning and explanation require a configured AI provider;
 calculation and saved plan
 retrieval use the stored backend state. If the provider is unavailable, the page
 shows the backend error and leaves any completed calculation visible.

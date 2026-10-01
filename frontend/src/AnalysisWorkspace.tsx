@@ -18,6 +18,7 @@ import type { AltAbnormalityResponse } from "./api/analytics";
 import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
 import { SevereAeResult } from "./SevereAeCard";
 import { SubjectSafetyResult } from "./SubjectSafetyCard";
+import { ReviewPanel } from "./ReviewPanel";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
 type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing" | "reproducing" | "history";
@@ -408,7 +409,13 @@ export function AnalysisWorkspace({
                 <p className="governance-decision">
                   {governance.decision === "REVIEW_REQUIRED"
                     ? "Ready for independent review, but not approved."
-                    : "Not ready for independent review."}
+                    : governance.decision === "APPROVED"
+                      ? "Approved by an independent reviewer."
+                      : governance.decision === "REJECTED"
+                        ? "Rejected by the reviewer."
+                        : governance.decision === "CHANGES_REQUESTED"
+                          ? "The reviewer requested changes. Create a new analysis plan for a revised run."
+                          : "Not ready for independent review."}
                 </p>
                 <ul className="governance-findings">{governance.findings.map((finding) => (
                   <li key={finding.policy_code}>
@@ -420,8 +427,11 @@ export function AnalysisWorkspace({
                 ))}</ul>
               </>
             ) : <p>Check the saved plan against the backend rules for calculation, grounding, and review.</p>}
-            <p className="governance-note">Independent review is not available in this demo yet.</p>
+            <p className="governance-note">Approval is recorded only after a separate reviewer token makes a backend-validated decision.</p>
           </section>
+          <ReviewPanel key={plan.id} planId={plan.id}
+            readyToSubmit={plan.status === "EXECUTED" && Boolean(plan.interpretation)}
+            onChanged={() => setGovernance(null)} />
         </div>
       )}
     </section>

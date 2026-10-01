@@ -9,6 +9,7 @@ from trialops.governance.contracts import (
     PolicyCode,
     PolicyStatus,
 )
+from trialops.reviews.contracts import ReviewState
 
 
 def _finding(
@@ -48,22 +49,32 @@ def evaluate_analysis_governance(plan: AnalysisPlanDetails) -> GovernanceEvaluat
         fail_message="A numerically verified AI interpretation is required before review.",
     )
     prerequisites_pass = result_available and interpretation_grounded
+    approved = plan.review_state is ReviewState.APPROVED
     review_finding = GovernanceFinding(
         policy_code=PolicyCode.INDEPENDENT_REVIEW_REQUIRED,
-        status=PolicyStatus.FAIL,
-        blocking=True,
+        status=PolicyStatus.PASS if approved else PolicyStatus.FAIL,
+        blocking=not approved,
         message=(
-            "Independent reviewer approval is required."
+            "An independent reviewer approved this analysis."
+            if approved
+            else "Independent reviewer approval is required."
             if prerequisites_pass
             else "Independent review cannot begin until the prerequisite checks pass."
         ),
     )
 
+    if plan.review_state is ReviewState.REJECTED:
+        decision = GovernanceDecision.REJECTED
+    elif plan.review_state is ReviewState.CHANGES_REQUESTED:
+        decision = GovernanceDecision.CHANGES_REQUESTED
+    elif approved and prerequisites_pass:
+        decision = GovernanceDecision.APPROVED
+    elif prerequisites_pass:
+        decision = GovernanceDecision.REVIEW_REQUIRED
+    else:
+        decision = GovernanceDecision.NOT_READY_FOR_REVIEW
+
     return GovernanceEvaluation(
-        decision=(
-            GovernanceDecision.REVIEW_REQUIRED
-            if prerequisites_pass
-            else GovernanceDecision.NOT_READY_FOR_REVIEW
-        ),
+        decision=decision,
         findings=(result_finding, grounding_finding, review_finding),
     )

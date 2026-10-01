@@ -23,6 +23,7 @@ from trialops.analytics.contracts import (
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
 )
+from trialops.reviews.contracts import ReviewState
 
 
 class AgentPlanQueryErrorCode(StrEnum):
@@ -122,6 +123,20 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
         _invalid_stored_plan("Only an executed plan may contain an interpretation.")
 
     try:
+        review_state = ReviewState(record.review_state)
+    except ValueError as exc:
+        raise AgentPlanQueryError(
+            AgentPlanQueryErrorCode.INVALID_STORED_PLAN,
+            "The stored analysis has an invalid review state.",
+        ) from exc
+    if (record.submitted_by is None) != (record.submitted_at is None):
+        _invalid_stored_plan("The stored review submission is incomplete.")
+    if review_state is ReviewState.DRAFT and record.submitted_by is not None:
+        _invalid_stored_plan("A draft analysis cannot already be submitted.")
+    if review_state is not ReviewState.DRAFT and record.submitted_by is None:
+        _invalid_stored_plan("The review state requires a submitter.")
+
+    try:
         return AnalysisPlanDetails(
             id=record.id,
             question=record.question,
@@ -137,6 +152,9 @@ def validate_analysis_plan_record(record: AgentPlanRecord) -> AnalysisPlanDetail
             interpretation=interpretation,
             created_at=record.created_at,
             executed_at=record.executed_at,
+            review_state=review_state,
+            submitted_by=record.submitted_by,
+            submitted_at=record.submitted_at,
         )
     except ValidationError as exc:
         raise AgentPlanQueryError(

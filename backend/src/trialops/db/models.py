@@ -11,11 +11,13 @@ from trialops.datasets.models import (
 )
 from trialops.db.base import Base
 from trialops.lineage.models import ReproductionRunRecord
+from trialops.reviews.models import AuditEventRecord, ReviewEventRecord
 from trialops.studies.models import Study
 
 __all__ = [
     "AEEvent",
     "AgentPlanRecord",
+    "AuditEventRecord",
     "Base",
     "DMSubject",
     "LBResult",
@@ -23,5 +25,6 @@ __all__ = [
     "DatasetVersionStatus",
     "SourceArtifactRecord",
     "ReproductionRunRecord",
+    "ReviewEventRecord",
     "Study",
 ]

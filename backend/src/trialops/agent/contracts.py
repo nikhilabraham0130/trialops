@@ -13,6 +13,7 @@ from trialops.analytics.contracts import (
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
 )
+from trialops.reviews.contracts import ReviewState
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
 
@@ -130,6 +131,9 @@ class AnalysisPlanDetails(BaseModel):
     interpretation: StoredInterpretation | None
     created_at: datetime
     executed_at: datetime | None
+    review_state: ReviewState = ReviewState.DRAFT
+    submitted_by: str | None = None
+    submitted_at: datetime | None = None
 
     @field_validator("question", "purpose")
     @classmethod

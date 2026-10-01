@@ -360,7 +360,8 @@ deterministic rules. It reports whether a stored calculation exists, whether an
 AI explanation passed numeric grounding, and whether independent review is still
 required. `NOT_READY_FOR_REVIEW` means a prerequisite is missing;
 `REVIEW_REQUIRED` means those prerequisites pass, not that anyone has approved
-the analysis. The endpoint is read-only and does not call the AI provider or
+the analysis. After a decision, it can report `APPROVED`, `CHANGES_REQUESTED`,
+or `REJECTED`. The endpoint is read-only and does not call the AI provider or
 store a review decision. Unknown plans return `404`; inconsistent saved plans
 return `409`.
 
@@ -397,6 +398,29 @@ run it through the first endpoint. A question that cannot be answered using one
 curated view is rejected. The local demo does not yet have user authentication,
 persisted SQL proposals, or a SQL audit trail.
 
+## Local independent review
+
+Review is opt-in for the local demonstration. Generate two different tokens with
+`python -c "import secrets; print(secrets.token_urlsafe(32))"` and put them in the
+ignored root `.env` as `TRIALOPS_ANALYST_TOKEN` and `TRIALOPS_REVIEWER_TOKEN`.
+Do not commit, log, or share the values. Both must be configured, distinct, and
+at least 32 characters. Without them, review actions return `503`; ordinary
+analysis remains available.
+
+`POST /agent/plans/{id}/submit` requires `Authorization: Bearer <analyst token>`
+and an executed result with a numerically verified interpretation. The plan
+then enters `PENDING_REVIEW`. `POST /agent/plans/{id}/review` requires the
+different reviewer token and accepts `APPROVED`, `CHANGES_REQUESTED`, or
+`REJECTED`; the latter two require a comment. The backend locks the plan row,
+checks the transition and submitter identity, and commits the new state plus
+review and audit events in one transaction. `GET /agent/plans/{id}/review`
+returns the current state and decision history. A requested change requires a
+new plan; submitted runs are not silently rewritten.
+
+These two fixed local identities are intentionally not production user accounts.
+They do not provide per-person identity, token rotation, account recovery, or
+organization-level access control.
+
 ## Configuration
 
 The API reads `TRIALOPS_`-prefixed environment variables. Uvicorn's `--env-file`
@@ -416,6 +440,8 @@ application starts.
 | `TRIALOPS_LLM_API_KEY` | Secret provider credential; omit to disable | live AI disabled |
 | `TRIALOPS_LLM_BASE_URL` | HTTPS provider base URL | `https://api.deepseek.com` |
 | `TRIALOPS_LLM_MODEL` | Active DeepSeek model ID | `deepseek-flash` |
+| `TRIALOPS_ANALYST_TOKEN` | Local analyst review token (32+ characters) | review disabled |
+| `TRIALOPS_REVIEWER_TOKEN` | Different local reviewer token (32+ characters) | review disabled |
 
 An unsupported value causes application startup to fail rather than silently
 using an unintended configuration.
