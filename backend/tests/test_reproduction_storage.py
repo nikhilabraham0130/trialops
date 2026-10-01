@@ -31,7 +31,7 @@ class Rows:
 class Session:
     def __init__(self, records: list[ReproductionRunRecord] | None = None) -> None:
         self.records = records or []
-        self.added: ReproductionRunRecord | None = None
+        self.added: list[object] = []
         self.commits = 0
         self.rollbacks = 0
 
@@ -41,8 +41,8 @@ class Session:
     async def scalars(self, _query: object) -> Rows:
         return Rows(self.records)
 
-    def add(self, record: ReproductionRunRecord) -> None:
-        self.added = record
+    def add(self, record: object) -> None:
+        self.added.append(record)
 
     async def commit(self) -> None:
         self.commits += 1
@@ -72,8 +72,10 @@ def test_storage_appends_comparison_when_saved_result_is_unchanged(
     stored = asyncio.run(store_reproduction_run(cast(AsyncSession, session), _comparison(plan)))
 
     assert stored.status == "EXACT_MATCH"
-    assert session.added is not None
-    assert stored.id == session.added.id
+    comparison_record = next(
+        item for item in session.added if isinstance(item, ReproductionRunRecord)
+    )
+    assert stored.id == comparison_record.id
     assert session.commits == 1
     assert session.rollbacks == 0
 
@@ -88,7 +90,7 @@ def test_storage_rejects_a_changed_result_hash(monkeypatch: pytest.MonkeyPatch) 
         asyncio.run(store_reproduction_run(cast(AsyncSession, session), changed))
 
     assert raised.value.code is ReproductionStorageErrorCode.PLAN_CHANGED
-    assert session.added is None
+    assert session.added == []
     assert session.rollbacks == 1
 
 

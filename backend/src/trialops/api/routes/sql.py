@@ -1,12 +1,15 @@
 """Controlled endpoint for human- or model-authored candidate clinical SQL."""
 
+import hashlib
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from trialops.api.dependencies import DatabaseSession, SQLPlanningModel
+from trialops.audit.service import append_audit_event
 from trialops.datasets.models import DatasetVersion
 from trialops.sql.execution import GovernedSQLResult, SQLExecutionError, run_governed_sql
 from trialops.sql.planning import (
@@ -19,6 +22,40 @@ from trialops.sql.policy import SQLPolicyError
 from trialops.validation.alt import DatasetVersionNotFoundError
 
 router = APIRouter(prefix="/dataset-versions", tags=["governed-sql"])
+
+
+async def _audit_sql(
+    session: DatabaseSession,
+    dataset_version_id: UUID,
+    action: str,
+    candidate_sql: str,
+    *,
+    row_count: int | None = None,
+) -> None:
+    """Store only a query fingerprint, never potentially sensitive SQL literals."""
+    details: dict[str, str | int] = {
+        "candidate_sha256": hashlib.sha256(candidate_sql.encode("utf-8")).hexdigest()
+    }
+    if row_count is not None:
+        details["row_count"] = row_count
+    append_audit_event(
+        session,
+        action=action,
+        entity_type="dataset_version",
+        entity_id=dataset_version_id,
+        details=details,
+    )
+    try:
+        await session.commit()
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "AUDIT_UNAVAILABLE",
+                "message": "The query audit event could not be saved.",
+            },
+        ) from exc
 
 
 class SQLQueryRequest(BaseModel):
@@ -59,7 +96,7 @@ async def propose_sql(
             },
         )
     try:
-        return await propose_clinical_sql(
+        proposal = await propose_clinical_sql(
             model, dataset_version_id=dataset_version_id, question=request.question
         )
     except SQLPlanningError as exc:
@@ -72,6 +109,8 @@ async def propose_sql(
             status_code=status_code,
             detail={"code": exc.code.value, "message": str(exc)},
         ) from exc
+    await _audit_sql(session, dataset_version_id, "SQL_DRAFTED", proposal.validated_sql)
+    return proposal
 
 
 @router.post(
@@ -90,14 +129,23 @@ async def execute_clinical_sql(
 ) -> GovernedSQLResult:
     """Never expose credentials or unrestricted relations to a candidate query."""
     try:
-        return await run_governed_sql(session, dataset_version_id, request.candidate_sql)
+        result = await run_governed_sql(session, dataset_version_id, request.candidate_sql)
     except DatasetVersionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "DATASET_VERSION_NOT_FOUND", "message": str(exc)},
         ) from exc
     except (SQLPolicyError, SQLExecutionError) as exc:
+        await _audit_sql(session, dataset_version_id, "SQL_REJECTED", request.candidate_sql)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"code": exc.code.value, "message": str(exc)},
         ) from exc
+    await _audit_sql(
+        session,
+        dataset_version_id,
+        "SQL_EXECUTED",
+        result.validated_sql,
+        row_count=result.row_count,
+    )
+    return result

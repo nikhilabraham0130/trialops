@@ -48,6 +48,10 @@ class _FakeSession:
         self.statements: list[object] = []
         self.rollback_calls = 0
         self.commit_calls = 0
+        self.added: list[object] = []
+
+    def add(self, instance: object) -> None:
+        self.added.append(instance)
 
     async def scalar(self, statement: object) -> AgentPlanRecord | None:
         self.statements.append(statement)

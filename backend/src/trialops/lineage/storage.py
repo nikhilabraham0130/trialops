@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trialops.agent.models import AgentPlanRecord
 from trialops.agent.queries import get_analysis_plan, validate_analysis_plan_record
+from trialops.audit.service import append_audit_event
 from trialops.lineage.models import ReproductionRunRecord
 from trialops.lineage.reproduction import (
     ReproductionComparison,
@@ -82,6 +83,13 @@ async def store_reproduction_run(
         created_at=datetime.now(UTC),
     )
     session.add(record)
+    append_audit_event(
+        session,
+        action="ANALYSIS_REPRODUCED",
+        entity_type="agent_plan",
+        entity_id=comparison.plan_id,
+        details={"status": comparison.status, "reproduction_run_id": str(record.id)},
+    )
     try:
         await session.commit()
     except IntegrityError as exc:

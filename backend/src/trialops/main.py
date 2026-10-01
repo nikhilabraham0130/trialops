@@ -11,6 +11,7 @@ from trialops.agent.interpretation_model import InterpretationModel
 from trialops.agent.model import PlanModel
 from trialops.api.routes.agent import router as agent_router
 from trialops.api.routes.analytics import router as analytics_router
+from trialops.api.routes.audit import router as audit_router
 from trialops.api.routes.health import router as health_router
 from trialops.api.routes.reviews import router as reviews_router
 from trialops.api.routes.sql import router as sql_router
@@ -69,6 +70,7 @@ def create_app(
         allow_headers=["*"],
     )
     application.include_router(agent_router)
+    application.include_router(audit_router)
     application.include_router(analytics_router)
     application.include_router(health_router)
     application.include_router(reviews_router)

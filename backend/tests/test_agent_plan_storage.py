@@ -25,13 +25,13 @@ from trialops.agent.storage import (
 
 class _FakeSession:
     def __init__(self, commit_error: IntegrityError | None = None) -> None:
-        self.added: object | None = None
+        self.added: list[object] = []
         self.commit_error = commit_error
         self.commit_calls = 0
         self.rollback_calls = 0
 
     def add(self, instance: object) -> None:
-        self.added = instance
+        self.added.append(instance)
 
     async def commit(self) -> None:
         self.commit_calls += 1
@@ -63,7 +63,7 @@ def test_storage_commits_exact_plan_fields_and_trusted_arguments() -> None:
 
     assert fake.commit_calls == 1
     assert fake.rollback_calls == 0
-    record = cast(AgentPlanRecord, fake.added)
+    record = next(item for item in fake.added if isinstance(item, AgentPlanRecord))
     assert record.id == plan.id
     assert record.dataset_version_id == dataset_version_id
     assert record.question == plan.question

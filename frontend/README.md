@@ -33,6 +33,9 @@ demand. When local role tokens are configured, enter the analyst token to submit
 a completed, grounded analysis, then the reviewer token to decide. The browser
 clears a token after a successful action; the backend determines the role from
 the token and prevents self-approval. See the backend README for token setup.
+The analysis workspace and SQL workbench can load recent audit events for their
+selected plan or dataset version. SQL events show the action and time, not the
+raw query text.
 The study catalog also includes a manual governed SQL workbench. It sends a
 candidate SELECT to the backend and displays only rows returned from one of
 three approved, dataset-version-filtered clinical views. The browser does not

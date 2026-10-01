@@ -40,7 +40,8 @@ The initial analytical workflows will cover:
 
 The product includes dataset validation and versioning, a bounded text-to-SQL
 drafting flow, a tool-using analysis agent, evidence grounding, deterministic
-reproduction, and local independent review. Wider audit coverage is still planned.
+reproduction, local independent review, and a bounded audit history. Wider audit
+coverage is still planned.
 
 ## Data approach
 
@@ -75,9 +76,11 @@ views, with database permissions, a timeout, and a row cap. The AI can draft a
 query from a question, but the user must review and explicitly run it.
 An analyst can submit a grounded analysis, and a separate reviewer can approve,
 reject, or request changes using backend-checked local role tokens.
+Plan, SQL, reproduction, and review actions now produce searchable business
+events without storing raw SQL literals in the audit trail.
 
-This is not a complete governed MVP yet. Full audit history, SQL audit history,
-production authentication, and a broader clinical tool catalog remain
+This is not a complete governed MVP yet. Complete actor identity, production
+authentication, and a broader clinical tool catalog remain
 to be implemented. See the backend and frontend READMEs for current local usage.
 
 ## Important disclaimer

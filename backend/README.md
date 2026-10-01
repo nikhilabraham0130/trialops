@@ -395,8 +395,8 @@ The endpoint returns the normalized SQL and result rows. A separate
 asks the configured AI provider for a candidate query, validates it against the
 same SQL policy, and returns the unexecuted proposal. The user must explicitly
 run it through the first endpoint. A question that cannot be answered using one
-curated view is rejected. The local demo does not yet have user authentication,
-persisted SQL proposals, or a SQL audit trail.
+curated view is rejected. SQL actions are audited by query fingerprint, but the
+local demo does not yet have per-user SQL authentication or persisted proposals.
 
 ## Local independent review
 
@@ -420,6 +420,18 @@ new plan; submitted runs are not silently rewritten.
 These two fixed local identities are intentionally not production user accounts.
 They do not provide per-person identity, token rotation, account recovery, or
 organization-level access control.
+
+## Audit history
+
+`GET /audit/events?entity_id=<UUID>&limit=100` returns the newest recorded
+business actions for one saved plan or dataset version. Plan creation,
+execution, verified interpretation, reproduction, review submission, and review
+decisions write audit events alongside their state changes. SQL drafting,
+successful execution, and rejected queries are recorded with a SHA-256 query
+fingerprint rather than raw query text. The database rejects updates and deletes
+to audit, review, and reproduction history rows. Actions outside the role-token
+review flow use the shared `local-operator` label, so the history does not yet
+identify an individual human for every action.
 
 ## Configuration
 

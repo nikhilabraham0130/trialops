@@ -60,14 +60,14 @@ class _FakeSession:
         self.scalar_calls = 0
         self.commit_calls = 0
         self.rollback_calls = 0
-        self.added: object | None = None
+        self.added: list[object] = []
 
     async def scalar(self, _statement: object) -> UUID | None:
         self.scalar_calls += 1
         return self.version_id
 
     def add(self, instance: object) -> None:
-        self.added = instance
+        self.added.append(instance)
 
     async def commit(self) -> None:
         self.commit_calls += 1
@@ -291,7 +291,7 @@ def test_plan_endpoint_returns_confirmation_required_plan() -> None:
     assert fake_session.scalar_calls == 1
     assert fake_session.rollback_calls == 1
     assert fake_session.commit_calls == 1
-    record = cast(AgentPlanRecord, fake_session.added)
+    record = next(item for item in fake_session.added if isinstance(item, AgentPlanRecord))
     assert str(record.id) == body["id"]
     assert record.dataset_version_id == version_id
     assert len(model.requests) == 1

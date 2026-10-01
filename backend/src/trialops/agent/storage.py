@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trialops.agent.contracts import AnalysisPlan
 from trialops.agent.models import AgentPlanRecord
+from trialops.audit.service import append_audit_event
 
 
 class AgentPlanStorageErrorCode(StrEnum):
@@ -35,6 +36,16 @@ async def store_analysis_plan(session: AsyncSession, plan: AnalysisPlan) -> None
         tool_arguments=plan.tool_call.arguments.model_dump(mode="json"),
     )
     session.add(record)
+    append_audit_event(
+        session,
+        action="ANALYSIS_CREATED",
+        entity_type="agent_plan",
+        entity_id=plan.id,
+        details={
+            "dataset_version_id": str(plan.dataset_version_id),
+            "tool_name": plan.tool_call.name.value,
+        },
+    )
     try:
         await session.commit()
     except IntegrityError as exc:

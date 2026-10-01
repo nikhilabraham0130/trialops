@@ -24,6 +24,7 @@ from trialops.agent.queries import (
     get_analysis_plan,
     validate_analysis_plan_record,
 )
+from trialops.audit.service import append_audit_event
 
 
 class InterpretationWorkflowErrorCode(StrEnum):
@@ -155,6 +156,13 @@ async def create_verified_plan_interpretation(
         )
 
     record.interpretation = stored.model_dump(mode="json")
+    append_audit_event(
+        session,
+        action="INTERPRETATION_VERIFIED",
+        entity_type="agent_plan",
+        entity_id=record.id,
+        details={"prompt_version": stored.prompt_version, "model_id": stored.model_id},
+    )
     try:
         await session.commit()
     except IntegrityError as exc:

@@ -32,6 +32,7 @@ from trialops.analytics.subject_safety import (
     SubjectNotFoundError,
     get_stored_subject_safety_summary,
 )
+from trialops.audit.service import append_audit_event
 from trialops.validation.alt import DatasetVersionNotFoundError
 
 
@@ -162,6 +163,16 @@ async def execute_confirmed_plan(
     record.status = PlanStatus.EXECUTED
     record.result = structured_result.model_dump(mode="json")
     record.executed_at = datetime.now(UTC)
+    append_audit_event(
+        session,
+        action="ANALYSIS_EXECUTED",
+        entity_type="agent_plan",
+        entity_id=record.id,
+        details={
+            "dataset_version_id": str(record.dataset_version_id),
+            "tool_name": record.tool_name.value,
+        },
+    )
 
     try:
         await session.commit()

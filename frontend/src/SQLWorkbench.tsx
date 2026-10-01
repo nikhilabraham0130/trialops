@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import { proposeClinicalSQL, runGovernedSQL, type GovernedSQLResult, type SQLProposal } from "./api/sql";
+import { AuditPanel } from "./AuditPanel";
 
 const starterQuery = "SELECT actual_arm, COUNT(*) AS subjects FROM vw_subjects GROUP BY actual_arm";
 
@@ -114,6 +115,7 @@ export function SQLWorkbench({
           )}
         </div>
       )}
+      <AuditPanel entityId={datasetVersionId} />
     </section>
   );
 }

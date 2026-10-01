@@ -1,7 +1,9 @@
 """The governed SQL route returns safe results and controlled failures."""
 
 import asyncio
+import hashlib
 from collections.abc import AsyncIterator
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -10,8 +12,10 @@ from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trialops.api.dependencies import get_database_session
+from trialops.api.routes.sql import _audit_sql
 from trialops.core.config import RuntimeEnvironment, Settings
 from trialops.main import create_app
+from trialops.reviews.models import AuditEventRecord
 from trialops.sql.execution import GovernedSQLResult
 from trialops.sql.policy import SQLPolicyError, SQLPolicyErrorCode
 from trialops.validation.alt import DatasetVersionNotFoundError
@@ -25,7 +29,7 @@ async def _post(app: FastAPI, version_id: object, sql: str) -> Response:
 
 
 async def _fake_session() -> AsyncIterator[AsyncSession]:
-    yield AsyncSession()
+    yield AsyncMock(spec=AsyncSession)
 
 
 def test_route_returns_validated_sql_and_rows(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,3 +82,16 @@ def test_route_maps_safe_errors(
     response = asyncio.run(_post(app, uuid4(), "SELECT * FROM vw_subjects"))
     assert response.status_code == status_code
     assert response.json()["detail"]["code"] == code
+
+
+def test_sql_audit_keeps_only_query_fingerprint() -> None:
+    session = AsyncMock(spec=AsyncSession)
+    candidate = "SELECT * FROM vw_subjects WHERE unique_subject_id = 'private-literal'"
+    asyncio.run(_audit_sql(session, uuid4(), "SQL_REJECTED", candidate))
+    record = session.add.call_args.args[0]
+    assert isinstance(record, AuditEventRecord)
+    assert record.details == {
+        "candidate_sha256": hashlib.sha256(candidate.encode("utf-8")).hexdigest()
+    }
+    assert "private-literal" not in str(record.details)
+    assert session.commit.await_count == 1

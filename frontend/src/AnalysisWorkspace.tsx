@@ -19,6 +19,7 @@ import type { DatasetVersionSummary, StudyListResponse } from "./api/studies";
 import { SevereAeResult } from "./SevereAeCard";
 import { SubjectSafetyResult } from "./SubjectSafetyCard";
 import { ReviewPanel } from "./ReviewPanel";
+import { AuditPanel } from "./AuditPanel";
 
 type PlanView = Omit<AnalysisPlanDetails, "created_at" | "executed_at">;
 type WorkflowStep = "idle" | "loading" | "planning" | "executing" | "interpreting" | "governing" | "reproducing" | "history";
@@ -432,6 +433,7 @@ export function AnalysisWorkspace({
           <ReviewPanel key={plan.id} planId={plan.id}
             readyToSubmit={plan.status === "EXECUTED" && Boolean(plan.interpretation)}
             onChanged={() => setGovernance(null)} />
+          <AuditPanel key={`audit-${plan.id}`} entityId={plan.id} />
         </div>
       )}
     </section>
