@@ -16,6 +16,7 @@ from trialops.analytics.lab_abnormalities import (
     AltExceedance,
     TimingClassification,
 )
+from trialops.analytics.lab_reference_ranges import LabRangeEvidence, LabRangeResult, RangeDirection
 from trialops.analytics.serious_adverse_events import (
     SeriousAeArmResult,
     SeriousAeEvidence,
@@ -161,6 +162,70 @@ def test_alt_endpoint_requires_database_resources() -> None:
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Database resources are unavailable."}
+
+
+def test_lab_reference_range_endpoint_reports_counts_and_source_limitations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version_id = uuid4()
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+
+    async def fake_calculation(
+        _session: AsyncSession, requested_version_id: object, test_code: str
+    ) -> LabRangeResult:
+        assert requested_version_id == version_id
+        assert test_code == "AST"
+        return LabRangeResult(
+            method_version="lab-reference-range/1.0",
+            test_code="AST",
+            total_rows=4,
+            eligible_rows=3,
+            excluded_rows=1,
+            below_lower_rows=0,
+            above_upper_rows=1,
+            subjects_with_out_of_range=1,
+            evidence=(
+                LabRangeEvidence(
+                    source_record_number=42,
+                    unique_subject_id="SUBJECT-001",
+                    standard_result=Decimal(41),
+                    standard_unit="U/L",
+                    lower_reference_limit=Decimal(0),
+                    upper_reference_limit=Decimal(40),
+                    direction=RangeDirection.ABOVE_UPPER,
+                    baseline_flag=None,
+                ),
+            ),
+            evidence_truncated=False,
+        )
+
+    monkeypatch.setattr(
+        "trialops.api.routes.analytics.calculate_stored_lab_reference_range", fake_calculation
+    )
+    application.dependency_overrides[get_database_session] = _fake_session
+    response = asyncio.run(
+        _request(
+            application,
+            f"/dataset-versions/{version_id}/analytics/lab-reference-range?test_code=AST",
+        )
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["out_of_range_rows"] == 1
+    assert body["excluded_rows"] == 1
+    assert body["evidence"][0]["direction"] == "ABOVE_UPPER"
+    assert "blank baseline flag" in body["interpretation_limit"]
+
+
+def test_lab_reference_range_rejects_invalid_test_code() -> None:
+    application = create_app(Settings(env=RuntimeEnvironment.TEST))
+    application.dependency_overrides[get_database_session] = _fake_session
+    response = asyncio.run(
+        _request(
+            application, f"/dataset-versions/{uuid4()}/analytics/lab-reference-range?test_code=ast"
+        )
+    )
+    assert response.status_code == 422
 
 
 def test_severe_ae_endpoint_serializes_population_counts_and_evidence(

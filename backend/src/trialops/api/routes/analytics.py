@@ -2,19 +2,25 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from trialops.analytics.contracts import (
     AltAbnormalityResponse,
+    LabRangeResponse,
     SeriousAeIncidenceResponse,
     SevereAeIncidenceResponse,
     SubjectSafetySummaryResponse,
     to_alt_abnormality_response,
+    to_lab_range_response,
     to_serious_ae_incidence_response,
     to_severe_ae_incidence_response,
     to_subject_safety_summary_response,
 )
 from trialops.analytics.lab_abnormalities import calculate_stored_alt_gt_3x_uln
+from trialops.analytics.lab_reference_ranges import (
+    LabTestNotFoundError,
+    calculate_stored_lab_reference_range,
+)
 from trialops.analytics.serious_adverse_events import calculate_stored_serious_ae_incidence
 from trialops.analytics.severe_adverse_events import calculate_stored_severe_ae_incidence
 from trialops.analytics.subject_safety import (
@@ -49,6 +55,31 @@ async def get_alt_gt_3x_uln(
             },
         ) from exc
     return to_alt_abnormality_response(dataset_version_id, result)
+
+
+@router.get(
+    "/{dataset_version_id}/analytics/lab-reference-range",
+    response_model=LabRangeResponse,
+    summary="Compare one laboratory test to its row-specific reference limits",
+)
+async def get_lab_reference_range(
+    dataset_version_id: UUID,
+    session: DatabaseSession,
+    test_code: str = Query(pattern=r"^[A-Z][A-Z0-9]{1,7}$"),
+) -> LabRangeResponse:
+    try:
+        result = await calculate_stored_lab_reference_range(session, dataset_version_id, test_code)
+    except DatasetVersionNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "DATASET_VERSION_NOT_FOUND", "message": str(exc)},
+        ) from exc
+    except LabTestNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "LAB_TEST_NOT_FOUND", "message": str(exc)},
+        ) from exc
+    return to_lab_range_response(dataset_version_id, result)
 
 
 @router.get(

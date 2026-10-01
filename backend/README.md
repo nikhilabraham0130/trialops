@@ -204,6 +204,23 @@ source-backed evidence rows. The endpoint is read-only and does not create an
 analysis, approval, or audit record. An unknown dataset-version ID returns a
 controlled `404` response rather than an internal database error.
 
+## Laboratory results outside their supplied reference range
+
+The read-only endpoint below accepts an exact LB test code such as `AST`. It
+compares each numeric result to that row's own lower and upper limits, counting
+strictly below and strictly above separately. Missing/non-finite results or
+limits, and ranges whose lower limit is not less than the upper limit, are
+excluded and counted explicitly. A missing test code returns `LAB_TEST_NOT_FOUND`
+rather than a misleading zero. At most 200 source rows are returned as evidence;
+the total counts still include all rows and `evidence_truncated` reports the cap.
+
+```text
+GET /dataset-versions/{dataset_version_id}/analytics/lab-reference-range?test_code=AST
+```
+
+This describes measurements, not clinical diagnoses or treatment-emergent
+abnormalities. A blank baseline flag does not establish post-treatment timing.
+
 ## Recorded severe adverse events by actual arm
 
 `severe-ae-incidence/1.0` counts each DM subject once in their `ACTARM` group

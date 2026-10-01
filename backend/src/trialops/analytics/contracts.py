@@ -9,6 +9,7 @@ from trialops.analytics.lab_abnormalities import (
     AltAbnormalityResult,
     TimingClassification,
 )
+from trialops.analytics.lab_reference_ranges import LabRangeResult, RangeDirection
 from trialops.analytics.serious_adverse_events import SeriousAeIncidenceResult
 from trialops.analytics.severe_adverse_events import SevereAeIncidenceResult
 from trialops.analytics.subject_safety import SubjectSafetySummary
@@ -50,6 +51,60 @@ class AltAbnormalityResponse(BaseModel):
     exceedances: tuple[AltExceedanceResponse, ...]
     findings: tuple[ValidationFindingResponse, ...]
     timing_limitation: str
+
+
+class LabRangeEvidenceResponse(BaseModel):
+    source_record_number: int
+    unique_subject_id: str
+    standard_result: Decimal
+    standard_unit: str | None
+    lower_reference_limit: Decimal
+    upper_reference_limit: Decimal
+    direction: RangeDirection
+    baseline_flag: str | None
+
+
+class LabRangeResponse(BaseModel):
+    """Per-measurement comparison with row-specific source reference limits."""
+
+    dataset_version_id: UUID
+    method_version: str
+    test_code: str
+    total_rows: int
+    eligible_rows: int
+    excluded_rows: int
+    below_lower_rows: int
+    above_upper_rows: int
+    out_of_range_rows: int
+    subjects_with_out_of_range: int
+    evidence: tuple[LabRangeEvidenceResponse, ...]
+    evidence_truncated: bool
+    interpretation_limit: str
+
+
+def to_lab_range_response(dataset_version_id: UUID, result: LabRangeResult) -> LabRangeResponse:
+    return LabRangeResponse(
+        dataset_version_id=dataset_version_id,
+        method_version=result.method_version,
+        test_code=result.test_code,
+        total_rows=result.total_rows,
+        eligible_rows=result.eligible_rows,
+        excluded_rows=result.excluded_rows,
+        below_lower_rows=result.below_lower_rows,
+        above_upper_rows=result.above_upper_rows,
+        out_of_range_rows=result.out_of_range_rows,
+        subjects_with_out_of_range=result.subjects_with_out_of_range,
+        evidence=tuple(
+            LabRangeEvidenceResponse.model_validate(item, from_attributes=True)
+            for item in result.evidence
+        ),
+        evidence_truncated=result.evidence_truncated,
+        interpretation_limit=(
+            "This compares each numeric result with its supplied row-specific reference limits. "
+            "Missing or invalid limits are excluded, not called normal. A blank baseline flag "
+            "does not establish post-treatment timing. This is descriptive, not a diagnosis."
+        ),
+    )
 
 
 def to_alt_abnormality_response(
